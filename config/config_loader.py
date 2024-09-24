@@ -14,8 +14,24 @@ class ParamsLoader:
         
         # Initialize the parameters dictionary
         self.params = self.config.copy()
+        
+        # Ensure all necessary values are cast to proper types
+        self._cast_parameters()
+        
+        # Compute derived parameters
         self._compute_derived_parameters()
-    
+
+    def _cast_parameters(self):
+        # Cast specific parameters to ensure they are floats or integers
+        self.params["A"] = float(self.params["A"])
+        self.params["n"] = int(self.params["n"])
+        self.params["C"] = float(self.params["C"])
+        self.params["rho_i"] = float(self.params["rho_i"])
+        self.params["rho_w"] = float(self.params["rho_w"])
+        self.params["g"] = float(self.params["g"])
+        self.params["accum"] = float(self.params["accum"]) / self.params["year"]  # Convert to per second
+        self.params["facemelt"] = float(self.params["facemelt"]) / self.params["year"]  # Convert to per second
+
     def _compute_derived_parameters(self):
         # Compute dependent parameters
         self.params["m"] = 1 / self.params["n"]
