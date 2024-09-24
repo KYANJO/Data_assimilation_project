@@ -11,68 +11,73 @@ import numpy as np
 import jax.numpy as jnp
 
 class UtilsFunctions:
-    def __init__(self, m_obs, params):
-        self.m_obs = m_obs
+    def __init__(self, params):
+        """
+        Initialize the utility functions with model parameters.
+        
+        Parameters:
+        params (dict): Model parameters, including those used for bed topography.
+        """
         self.params = params
 
-    def Obs(self, huxg_virtual_obs):
+    def Obs(self, huxg_virtual_obs, m_obs):
         """
         Observation operator that reduces the full observation vector into a smaller subset.
         
         Parameters:
         huxg_virtual_obs (numpy array): The virtual observation vector (n-dimensional).
+        m_obs (int): The number of observations.
         
         Returns:
         numpy array: The reduced observation vector.
         """
         n = huxg_virtual_obs.shape[0]
-        m = self.m_obs
 
         # Initialize the H matrix
-        H = np.zeros((m * 2 + 1, n))
+        H = np.zeros((m_obs * 2 + 1, n))
 
         # Calculate distance between measurements
-        di = int((n - 2) / (2 * m))
+        di = int((n - 2) / (2 * m_obs))
 
         # Fill the H matrix
-        for i in range(m):
+        for i in range(m_obs):
             H[i, i * di] = 1
-            H[m + i, int((n - 2) / 2) + i * di] = 1
+            H[m_obs + i, int((n - 2) / 2) + i * di] = 1
 
-        H[m * 2, n - 2] = 1  # Final element
+        H[m_obs * 2, n - 2] = 1  # Final element
 
         # Perform matrix multiplication
         z = H @ huxg_virtual_obs
         return z
 
-    def JObs(self, n_model):
+    def JObs(self, n_model, m_obs):
         """
         Jacobian of the observation operator.
         
         Parameters:
         n_model (int): The size of the model state vector.
+        m_obs (int): The number of observations.
         
         Returns:
         numpy array: The Jacobian matrix of the observation operator.
         """
         n = n_model
-        m = self.m_obs
 
         # Initialize the H matrix
-        H = np.zeros((m * 2 + 1, n))
+        H = np.zeros((m_obs * 2 + 1, n))
 
         # Calculate distance between measurements
-        di = int((n - 2) / (2 * m))
+        di = int((n - 2) / (2 * m_obs))
 
         # Fill the H matrix
-        for i in range(m):
+        for i in range(m_obs):
             H[i, i * di] = 1
-            H[m + i, int((n - 2) / 2) + i * di] = 1
+            H[m_obs + i, int((n - 2) / 2) + i * di] = 1
 
-        H[m * 2, n - 2] = 1  # Final element
+        H[m_obs * 2, n - 2] = 1  # Final element
 
         return H
-
+    
     def bed(self, x):
         """
         Bed topography function, which computes the bed shape based on input x and model parameters.
@@ -83,11 +88,13 @@ class UtilsFunctions:
         Returns:
         jax.numpy array: The bed topography values at each x location.
         """
-        params = self.params
-        sillamp = params['sillamp']
-        sillsmooth = params['sillsmooth']
-        xsill = params['xsill']
+        # Ensure parameters are floats
+        params     = self.params
+        sillamp    = float(params['sillamp'])
+        sillsmooth = float(params['sillsmooth'])
+        xsill      = float(params['xsill'])
 
         # Compute the bed topography
         b = sillamp * (-2 * jnp.arccos((1 - sillsmooth) * jnp.sin(jnp.pi * x / (2 * xsill))) / jnp.pi - 1)
         return b
+
