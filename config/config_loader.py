@@ -1,7 +1,9 @@
+# =============================================================================
 # src/project_name/config_loader.py
 # @author: Brian Kyanjo
 # @date: 2024-09-24
 # @description: This file is used to load the parameters from the YAML file
+# =============================================================================
 
 import yaml
 import numpy as np
@@ -15,14 +17,17 @@ class ParamsLoader:
         # Initialize the parameters dictionary
         self.params = self.config.copy()
         
-        # Ensure all necessary values are cast to proper types
+        # Ensure necessary values are cast to the correct types
         self._cast_parameters()
-        
-        # Compute derived parameters
+
+        # Perform derived calculations
         self._compute_derived_parameters()
 
+        # Generate the grid dictionary
+        self._generate_grid()
+
     def _cast_parameters(self):
-        # Cast specific parameters to ensure they are floats or integers
+        """Ensure specific parameters are of the correct type."""
         self.params["A"] = float(self.params["A"])
         self.params["n"] = int(self.params["n"])
         self.params["C"] = float(self.params["C"])
@@ -33,27 +38,30 @@ class ParamsLoader:
         self.params["facemelt"] = float(self.params["facemelt"]) / self.params["year"]  # Convert to per second
 
     def _compute_derived_parameters(self):
-        # Compute dependent parameters
+        """Compute the derived scaling and other parameters."""
         self.params["m"] = 1 / self.params["n"]
         self.params["B"] = self.params["A"] ** (-1 / self.params["n"])
-        
-        # Compute scaling parameters using eval to evaluate formulas from YAML
-        self.params["uscale"] = eval(self.config['uscale_formula'], {}, self.params)
-        self.params["xscale"] = eval(self.config['xscale_formula'], {}, self.params)
-        self.params["tscale"] = eval(self.config['tscale_formula'], {}, self.params)
-        self.params["eps"] = eval(self.config['eps_formula'], {}, self.params)
-        self.params["lambda"] = eval(self.config['lambda_formula'], {}, self.params)
 
-        # Grid parameters
-        self.params["NX"] = eval(self.config['NX_formula'], {}, self.params)
-        self.params["dt"] = eval(self.config['dt_formula'], {}, self.params)
-        
-        # Generate sigma values for the grid
-        sigma1 = np.linspace(self.params["sigGZ"] / (self.params["N1"] + 0.5), self.params["sigGZ"], self.params["N1"])
-        sigma2 = np.linspace(self.params["sigGZ"], 1, self.params["N2"] + 1)
+        # Scaling parameters
+        self.params["hscale"] = 1000
+        self.params["ascale"] = 1.0 / self.params["year"]
+        self.params["uscale"] = (self.params["rho_i"] * self.params["g"] * self.params["hscale"] * self.params["ascale"] / self.params["C"]) ** (1 / (self.params["m"] + 1))
+        self.params["xscale"] = self.params["uscale"] * self.params["hscale"] / self.params["ascale"]
+        self.params["tscale"] = self.params["xscale"] / self.params["uscale"]
+        self.params["eps"] = self.params["B"] * ((self.params["uscale"] / self.params["xscale"]) ** (1 / self.params["n"])) / (2 * self.params["rho_i"] * self.params["g"] * self.params["hscale"])
+        self.params["lambda"] = 1 - (self.params["rho_i"] / self.params["rho_w"])
+
+        # Grid time parameters
+        self.params["TF"] = self.params["year"]  # 1 year in seconds
+        self.params["dt"] = self.params["TF"] / self.params["NT"]  # Time step
+
+    def _generate_grid(self):
+        """Generate sigma grid values."""
+        sigma1 = np.linspace(self.params["sigGZ"] / (self.params["N1"] + 0.5), self.params["sigGZ"], int(self.params["N1"]))
+        sigma2 = np.linspace(self.params["sigGZ"], 1, int(self.params["N2"] + 1))
         sigma = np.concatenate((sigma1, sigma2[1:self.params["N2"] + 1]))
 
-        # Create the grid dictionary within params
+        # Create the grid dictionary
         self.params["grid"] = {
             "sigma": sigma,
             "sigma_elem": np.concatenate(([0], (sigma[:-1] + sigma[1:]) / 2)),
@@ -61,4 +69,5 @@ class ParamsLoader:
         }
 
     def get_params(self):
+        """Return the full parameters dictionary."""
         return self.params
