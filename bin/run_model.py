@@ -1,12 +1,14 @@
+# =============================================================================
 # bin/run_model.py
 # @author: Brian Kyanjo
 # @date: 2024-09-24
-# @description: This script runs the model.
+# @description: This script runs the flowline model using the EnKF data assimilation scheme.
+# =============================================================================
 
 # import libraries
-import numpy as np
 import os
 import sys
+import numpy as np
 
 # Add the root directory (parent directory of 'bin') to the path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

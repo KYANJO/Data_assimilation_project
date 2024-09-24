@@ -1,3 +1,10 @@
+# =============================================================================
+# @author: Brian Kyanjo
+# @date: 2024-09-24
+# @description: This script includes the Ensemble Kalman Filter (EnKF) class for data assimilation.
+# =============================================================================
+
+# import libraries ========================
 import numpy as np
 from scipy.stats import multivariate_normal
 
