@@ -15,6 +15,8 @@ parameters:
   N1: 40
   N2: 10
   sigGZ: 0.97
+  transient: 0
+  tcurrent: 1
 
   # Bed parameters
   xsill: 50000  # in meters

@@ -5,6 +5,7 @@
 # @description: This file is used to load the parameters from the YAML file
 # =============================================================================
 
+# import libraries ========================
 import yaml
 import numpy as np
 
@@ -34,6 +35,8 @@ class ParamsLoader:
         self.params["rho_i"] = float(self.params["rho_i"])
         self.params["rho_w"] = float(self.params["rho_w"])
         self.params["g"] = float(self.params["g"])
+        self.params["transient"] = int(self.params["transient"])
+        self.params["tcurrent"] = int(self.params["tcurrent"])
         self.params["accum"] = float(self.params["accum"]) / self.params["year"]  # Convert to per second
         self.params["facemelt"] = float(self.params["facemelt"]) / self.params["year"]  # Convert to per second
 
@@ -51,12 +54,18 @@ class ParamsLoader:
         self.params["eps"] = self.params["B"] * ((self.params["uscale"] / self.params["xscale"]) ** (1 / self.params["n"])) / (2 * self.params["rho_i"] * self.params["g"] * self.params["hscale"])
         self.params["lambda"] = 1 - (self.params["rho_i"] / self.params["rho_w"])
 
+        # Compute NX after ensuring N1 and N2 are cast to integers
+        self.params["N1"] = int(self.params["N1"])
+        self.params["N2"] = int(self.params["N2"])
+        self.params["NX"] = self.params["N1"] + self.params["N2"]  # Calculate NX
+
         # Grid time parameters
         self.params["TF"] = self.params["year"]  # 1 year in seconds
         self.params["dt"] = self.params["TF"] / self.params["NT"]  # Time step
 
     def _generate_grid(self):
         """Generate sigma grid values."""
+        self.params["sigGZ"] = float(self.params["sigGZ"])
         sigma1 = np.linspace(self.params["sigGZ"] / (self.params["N1"] + 0.5), self.params["sigGZ"], int(self.params["N1"]))
         sigma2 = np.linspace(self.params["sigGZ"], 1, int(self.params["N2"] + 1))
         sigma = np.concatenate((sigma1, sigma2[1:self.params["N2"] + 1]))

@@ -52,9 +52,9 @@ class FlowlineModel:
         xg_old = varin_old[2 * NX]
 
         # Calculate bed
-        hf = -self.bedfun(xg * xscale, self.params) / (hscale * (1 - lambd))
-        hfm = -self.bedfun(xg * sigma_elem[-1] * xscale, self.params) / (hscale * (1 - lambd))
-        b = -self.bedfun(xg * sigma * xscale, self.params) / hscale
+        hf = -self.bedfun(xg * xscale) / (hscale * (1 - lambd))
+        hfm = -self.bedfun(xg * sigma_elem[-1] * xscale) / (hscale * (1 - lambd))
+        b = -self.bedfun(xg * sigma * xscale) / hscale
 
         # Initialize the residual vector
         F = jnp.zeros(2 * NX + 1, dtype=jnp.float64)
