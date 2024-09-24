@@ -10,7 +10,7 @@
 import numpy as np
 import jax.numpy as jnp
 
-class ObservationOperator:
+class UtilsFunctions:
     def __init__(self, m_obs, params):
         self.m_obs = m_obs
         self.params = params
