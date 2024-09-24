@@ -17,10 +17,6 @@ from scipy.optimize import root
 from scipy.stats import norm, multivariate_normal
 
 jax.config.update("jax_enable_x64", True) # Set the precision in JAX to use float64
-import jax
-import jax.numpy as jnp
-import numpy as np
-from scipy.optimize import root
 
 class FlowlineModel:
     def __init__(self, params, grid, bedfun):
