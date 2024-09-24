@@ -1,0 +1,41 @@
+# config/params.yaml
+
+parameters:
+  A: 4e-26
+  year: 31536000  # 3600 * 24 * 365
+  n: 3
+  C: 3e6
+  rho_i: 900
+  rho_w: 1000
+  g: 9.8
+  accum: 0.65
+  facemelt: 5
+
+  # Scaling parameters
+  hscale: 1000
+  ascale: 3.1709792e-8  # 1 / year
+  uscale_formula: "rho_i * g * hscale * ascale / C ** (1 / (m + 1))"
+  xscale_formula: "uscale * hscale / ascale"
+  tscale_formula: "xscale / uscale"
+  eps_formula: "B * ((uscale / xscale) ** (1 / n)) / (2 * rho_i * g * hscale)"
+  lambda_formula: "1 - (rho_i / rho_w)"
+
+  # Grid parameters
+  NT: 1
+  TF: 31536000  # 1 year
+  dt_formula: "TF / NT"
+  transient: 0
+  tcurrent: 1
+  N1: 40
+  N2: 10
+  sigGZ: 0.97
+  NX_formula: "N1 + N2"
+
+  # Bed parameters
+  xsill: 50000  # in meters
+  sillamp: 500
+  sillsmooth: 1e-5
+
+  # EnKF parameters
+  inflation: 1.0
+  assim: false
