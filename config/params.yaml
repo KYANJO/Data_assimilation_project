@@ -1,4 +1,7 @@
 # config/params.yaml
+# @author: Brian KYANJO
+# @date: 2024-09-24
+# @description: This file contains all the major parameters for the model
 
 parameters:
   A: 4e-26
