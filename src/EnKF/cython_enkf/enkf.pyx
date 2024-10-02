@@ -1,4 +1,13 @@
-# Import necessary Cython and numpy modules
+# =============================================================================
+# @author: Brian Kyanjo
+# @date: 2024-09-24
+# @description: Optimized and Robust Ensemble Kalman Filter (EnKF) class with 
+#               Parallelization.
+#               - The class includes the analysis step of the EnKF with both
+#                 Stochastic and Deterministic EnKF options.
+# ==============================================================================
+
+# Import necessary Cython and numpy modules 
 import numpy as np  # Python numpy for high-level functions
 cimport numpy as cnp  # Cython numpy for low-level array operations
 from scipy.stats import multivariate_normal
@@ -7,15 +16,15 @@ from scipy.stats import multivariate_normal
 ctypedef cnp.float64_t DTYPE_t  # Define a floating-point type for numpy arrays
 
 cdef class EnsembleKalmanFilter:
-    cdef:
-        cnp.ndarray[DTYPE_t, ndim=2] Cov_obs  # Declare types for numpy arrays
-        cnp.ndarray[DTYPE_t, ndim=2] Cov_model
-        cnp.ndarray[DTYPE_t, ndim=2] taper
+    cdef: 
+        object Cov_obs  
+        object Cov_model
+        object taper
         dict params
         object ObsFun
         object JObsFun
     
-    def __init__(self, object ObsFun, object JObsFun, np.ndarray Cov_obs, np.ndarray Cov_model, np.ndarray taper, dict params):
+    def __init__(self, object ObsFun, object JObsFun, cnp.ndarray Cov_obs, cnp.ndarray Cov_model, cnp.ndarray taper, dict params):
         """
         Initializes the Ensemble Kalman Filter (EnKF) with observation function, Jacobian, and covariance matrices.
         
@@ -47,15 +56,15 @@ cdef class EnsembleKalmanFilter:
         if self.taper.shape != self.Cov_model.shape:
             raise ValueError("Taper matrix must have the same dimensions as the model covariance matrix.")
     
-    cpdef np.ndarray compute_kalman_gain(self):
+    cpdef cnp.ndarray compute_kalman_gain(self):
         """
         Compute the Kalman gain based on the Jacobian of the observation function.
         """
-        cdef np.ndarray Jobs = self.JObsFun(self.Cov_model.shape[0], self.params["m_obs"])
-        cdef np.ndarray KalGain = self.Cov_model @ Jobs.T @ np.linalg.inv(Jobs @ self.Cov_model @ Jobs.T + self.Cov_obs)
+        cdef cnp.ndarray Jobs = self.JObsFun(self.Cov_model.shape[0], self.params["m_obs"])
+        cdef cnp.ndarray KalGain = self.Cov_model @ Jobs.T @ np.linalg.inv(Jobs @ self.Cov_model @ Jobs.T + self.Cov_obs)
         return KalGain
 
-    cpdef tuple analyze(self, np.ndarray huxg_ens, np.ndarray huxg_obs):
+    cpdef tuple analyze(self, cnp.ndarray huxg_ens, cnp.ndarray huxg_obs):
         """
         Perform the analysis step of the Ensemble Kalman Filter (EnKF).
 
@@ -68,19 +77,22 @@ cdef class EnsembleKalmanFilter:
         - analysis_cov: (n x n) numpy array of the updated covariance after analysis.
         """
         cdef int n, N, m, i
-        cdef np.ndarray huxg_ens_mean
-        cdef np.ndarray obs_virtual
-        cdef np.ndarray analysis_ens
-        cdef np.ndarray analysis_ens_mean
-        cdef np.ndarray analysis_cov
-        cdef np.ndarray KalGain
+        cdef cnp.ndarray huxg_ens_mean
+        cdef cnp.ndarray obs_virtual
+        cdef cnp.ndarray analysis_ens
+        cdef cnp.ndarray analysis_ens_mean
+        cdef cnp.ndarray analysis_cov
+        cdef cnp.ndarray KalGain
 
         # Validate dimensions of input arrays
         if huxg_ens.ndim != 2 or huxg_obs.ndim != 1:
             raise ValueError("The ensemble matrix must be 2D, and the observation vector must be 1D.")
         
-        n, N = huxg_ens.shape  # n is state size, N is ensemble size
-        m = huxg_obs.shape[0]  # Observation size
+        #n, N = huxg_ens.shape  # n is state size, N is ensemble size
+        #m = huxg_obs.shape[0]  # Observation size
+        n = int(huxg_ens.shape[0])
+        N = int(huxg_ens.shape[1])
+        m = int(huxg_obs.shape[0])
 
         # Compute the ensemble mean (use Python numpy functions)
         huxg_ens_mean = np.mean(huxg_ens, axis=1, keepdims=True)
@@ -109,22 +121,28 @@ cdef class EnsembleKalmanFilter:
 
         return analysis_ens, analysis_cov
 
-    cpdef set_cov_model(self, np.ndarray Cov_model):
+    '''     
+
+    cpdef set_cov_model(self, cnp.ndarray Cov_model):
         """
         Update the model covariance matrix.
 
         Cov_model: (n x n) numpy array for the new model covariance matrix.
         """
-        if Cov_model.shape != self.Cov_model.shape:
+        # Convert shapes to tuples before comparison
+        if tuple(Cov_model.shape) != tuple(self.Cov_model.shape):
             raise ValueError("New model covariance matrix must have the same dimensions as the current one.")
         self.Cov_model = Cov_model
-    
-    cpdef set_cov_obs(self, np.ndarray Cov_obs):
+
+    cpdef set_cov_obs(self, cnp.ndarray Cov_obs):
         """
         Update the observation covariance matrix.
 
         Cov_obs: (m x m) numpy array for the new observation covariance matrix.
         """
-        if Cov_obs.shape != self.Cov_obs.shape:
+        # Convert shapes to tuples before comparison
+        if tuple(Cov_obs.shape) != tuple(self.Cov_obs.shape):
             raise ValueError("New observation covariance matrix must have the same dimensions as the current one.")
         self.Cov_obs = Cov_obs
+
+    '''
