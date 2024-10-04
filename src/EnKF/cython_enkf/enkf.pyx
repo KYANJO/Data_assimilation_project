@@ -160,3 +160,61 @@ cdef class EnsembleKalmanFilter:
         Cov_model = (1 / (N - 1)) * diff @ diff.T
 
         return statevec_bg, statevec_ens, statevec_ens_mean, Cov_model
+
+    def model_run_with_EnKF(self, int nt,  int N, cnp.ndarray statevec_bg,\
+                         cnp.ndarray statevec_ens, cnp.ndarray statevec_ens_mean, \
+                         cnp.ndarray statevec_ens_full, object grid, object bedfun, \
+                         object modelfun, object run_modelfun, int nd, cnp.ndarray Q, \
+                         cnp.ndarray ts, cnp.ndarray ts_obs, cnp.ndarray huxg_virtual_obs, \
+                         cnp.float sig_obs):
+        """
+        Run the model with the EnKF.
+        """
+
+        for k in range(nt):
+            self.params["tcurrent"] = k + 1
+            print(f"Step {k+1}\n")
+
+            # Forecast step
+            statevec_bg, statevec_ens, statevec_ens_mean, Cov_model = self.EnKF_forecast(k, N, statevec_bg, statevec_ens, statevec_ens_mean, grid, bedfun, modelfun, run_modelfun, nd, Q)
+
+            # Check for observations at time step k+1
+            if ts[k+1] in ts_obs:
+                idx_obs = np.where(ts[k+1] == ts_obs)[0]
+
+                # taper the covariance matrix
+                Cov_model *= self.taper
+
+                # Measurement noise covariance
+                Cov_obs = (sig_obs**2) * np.eye(2 * self.params["m_obs"] + 1)
+
+                # Subsample virtual observations to actual measurement locations
+                huxg_obs = self.ObsFun(huxg_virtual_obs[:, idx_obs], self.params["m_obs"])
+
+                # flatten huxg_obs
+                huxg_obs = huxg_obs.ravel()
+
+                # Analysis step
+                # Analysis corrections
+                statevec_ens_temp, Cov_model = self.analyze(statevec_ens, huxg_obs, Cov_obs, Cov_model)
+
+                statevec_ens = statevec_ens_temp
+                statevec_ens_mean[:, k+1] = np.mean(statevec_ens, axis=1)
+
+                # Inflate ensemble spread
+                statevec_ens = np.tile(statevec_ens_mean[:, k+1].reshape(-1, 1), N) + self.params["inflation"] * (statevec_ens - np.tile(statevec_ens_mean[:, k+1].reshape(-1, 1), N))
+
+                # Update facemelt parameter for future steps
+                self.params["facemelt"][k+1:] = statevec_ens_mean[-1, k+1] * self.params["uscale"] * np.ones_like(self.params["facemelt"][k+1:])
+
+            # Store full ensemble for the current time step
+            statevec_ens_full[:, :, k+1] = statevec_ens
+
+        return statevec_ens_full, statevec_ens_mean
+
+
+        
+
+
+
+
