@@ -21,13 +21,26 @@ def safe_chdir(main_directory,target_directory):
     #     print(f"Error: Attempted to leave the main directory '{main_directory}'.")
 
 
-def install_requirements():
+def install_requirements(force_install=False, verbose=False):
     """
-    Install dependencies listed in the requirements.txt file if not already installed.
+    Install dependencies listed in the requirements.txt file if not already installed,
+    or if `force_install` is set to True.
     """
+    # Check if the `.installed` file exists to determine if installation is needed
+    if os.path.exists(".installed") and not force_install:
+        print("Dependencies are already installed. Skipping installation.")
+        return
+    
     try:
         # Run the command to install the requirements from requirements.txt
+        print("Installing dependencies from requirements.txt...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "../requirements.txt"])
+        
+        # Create a `.installed` marker file to indicate successful installation
+        with open(".installed", "w") as f:
+            f.write("Dependencies installed successfully.\n")
+
+        print("All dependencies are installed and verified.")
     except subprocess.CalledProcessError as e:
         # Print the error and raise a more meaningful exception
         print(f"Error occurred while installing dependencies: {e}")
