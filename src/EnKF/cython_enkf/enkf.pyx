@@ -115,7 +115,7 @@ cdef class EnsembleKalmanFilter:
 
         return analysis_ens, analysis_cov
 
-    def EnKF_forecast(self, int k, int N, cnp.ndarray statevec_bg, cnp.ndarray statevec_ens, object grid, object bedfun, object modelfun, object run_modelfun, int nd, cnp.ndarray Q):
+    def EnKF_forecast(self, int k, int N, cnp.ndarray statevec_bg, cnp.ndarray statevec_ens, cnp.ndarray statevec_ens_mean, object grid, object bedfun, object modelfun, object run_modelfun, int nd, cnp.ndarray Q):
         """
         Perform the forecast step of the Ensemble Kalman Filter (EnKF) using Dask for parallelization.
         
@@ -137,19 +137,26 @@ cdef class EnsembleKalmanFilter:
         statevec_bg[-1, k+1] = self.params["facemelt"][k+1] / self.params["uscale"]
 
         # Step 2: Parallelize the ensemble forecast using Dask
-        ensemble_tasks = [delayed(forecast_single_member)(i, k, statevec_ens, self.params, grid, bedfun, modelfun, run_modelfun, nd, Q) for i in range(N)]
-        updated_ensemble = compute(*ensemble_tasks)[0]  # Use Dask's compute to execute tasks
+        #ensemble_tasks = [delayed(forecast_single_member)(i, k, statevec_ens, self.params, grid, bedfun, modelfun, run_modelfun, nd, Q) for i in range(N)]
+        #updated_ensemble = compute(*ensemble_tasks)[0]  # Use Dask's compute to execute tasks
 
         # Step 3: Update the ensemble state
         for i in range(N):
-            statevec_ens[:, i] = updated_ensemble[i]
+            #statevec_ens[:, i] = updated_ensemble[i]
+            huxg_temp = np.squeeze(run_modelfun(statevec_ens[:-1, i], self.params, grid, bedfun, modelfun))
+
+            nos = np.random.multivariate_normal(np.zeros(nd), Q)  # Process noise
+
+            # Update state ensemble with noise and forecast
+            statevec_ens[:, i] = np.concatenate([huxg_temp, [self.params["facemelt"][k+1] / self.params["uscale"]]]) + nos
 
         # Step 4: Compute the mean of the forecasted ensemble
-        statevec_ens_mean = np.zeros_like(statevec_bg)
+        #statevec_ens_mean = np.zeros_like(statevec_bg)
         statevec_ens_mean[:, k + 1] = np.mean(statevec_ens, axis=1)
 
         # Step 5: Forecast error covariance matrix
-        diff = statevec_ens - statevec_ens_mean[:, k + 1].reshape(-1, 1)
+        #diff = statevec_ens - statevec_ens_mean[:, k + 1].reshape(-1, 1)
+        diff = statevec_ens - np.tile(statevec_ens_mean[:, k+1].reshape(-1, 1), N)
         Cov_model = (1 / (N - 1)) * diff @ diff.T
 
         return statevec_bg, statevec_ens, statevec_ens_mean, Cov_model
