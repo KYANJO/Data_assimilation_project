@@ -22,9 +22,13 @@ def forecast_single_member(i, k, statevec_ens, params, grid, bedfun, modelfun, r
     Function to forecast a single ensemble member. This function is used by Dask in parallel.
     """
     huxg_temp = np.squeeze(run_modelfun(statevec_ens[:-1, i], params, grid, bedfun, modelfun))  # Run model
+
     nos = np.random.multivariate_normal(np.zeros(nd), Q)  # Process noise
+
     # Update state ensemble with noise and forecast
-    return np.concatenate([huxg_temp, [params["facemelt"][k+1] / params["uscale"]]]) + nos
+    statevec_ens[:, i] = np.concatenate([huxg_temp, [params["facemelt"][k+1] / params["uscale"]]]) + nos
+    
+    return statevec_ens[:, i]
 
 # Define the Ensemble Kalman Filter (EnKF) class
 cdef class EnsembleKalmanFilter:
@@ -136,19 +140,25 @@ cdef class EnsembleKalmanFilter:
         statevec_bg[:-1, k+1] = np.squeeze(run_modelfun(statevec_bg[:-1, k], self.params, grid, bedfun, modelfun))
         statevec_bg[-1, k+1] = self.params["facemelt"][k+1] / self.params["uscale"]
 
-        # Step 2: Parallelize the ensemble forecast using Dask
-        #ensemble_tasks = [delayed(forecast_single_member)(i, k, statevec_ens, self.params, grid, bedfun, modelfun, run_modelfun, nd, Q) for i in range(N)]
-        #updated_ensemble = compute(*ensemble_tasks)[0]  # Use Dask's compute to execute tasks
+        # Step 2: create a lazy Dask task for each ensemble member
+        ensemble_tasks = [delayed(forecast_single_member)(i, k, statevec_ens, self.params, grid, bedfun, modelfun, run_modelfun, nd, Q) for i in range(N)]
+
+        # execute the tasks in parallel
+        updated_ensemble = compute(*ensemble_tasks)  
+
+        # convert the result back to a numpy array
+        statevec_ens = np.array(updated_ensemble).T
+        #statevec_ens = np.array(updated_ensemble)
 
         # Step 3: Update the ensemble state
-        for i in range(N):
-            #statevec_ens[:, i] = updated_ensemble[i]
-            huxg_temp = np.squeeze(run_modelfun(statevec_ens[:-1, i], self.params, grid, bedfun, modelfun))
+        # for i in range(N):
+        #     statevec_ens[:, i] = updated_ensemble[i]
+            #huxg_temp = np.squeeze(run_modelfun(statevec_ens[:-1, i], self.params, grid, bedfun, modelfun))
 
-            nos = np.random.multivariate_normal(np.zeros(nd), Q)  # Process noise
+            #nos = np.random.multivariate_normal(np.zeros(nd), Q)  # Process noise
 
             # Update state ensemble with noise and forecast
-            statevec_ens[:, i] = np.concatenate([huxg_temp, [self.params["facemelt"][k+1] / self.params["uscale"]]]) + nos
+            #statevec_ens[:, i] = np.concatenate([huxg_temp, [self.params["facemelt"][k+1] / self.params["uscale"]]]) + nos
 
         # Step 4: Compute the mean of the forecasted ensemble
         #statevec_ens_mean = np.zeros_like(statevec_bg)
