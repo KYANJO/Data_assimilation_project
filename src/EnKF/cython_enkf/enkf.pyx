@@ -11,7 +11,16 @@
 import numpy as np  # Python numpy for high-level functions
 cimport numpy as cnp  # Cython numpy for low-level array operations
 from scipy.stats import multivariate_normal
+import dask  # Dask for parallel computing
 from dask import delayed, compute
+from dask.distributed import Client, progress
+
+# OpenMP parallelization header
+# cimport cython
+# from cython.parallel import parallel, prange
+# from libc.stdlib cimport rand, srand, RAND_MAX  # Use C random functions for GIL-free random number generation
+
+# client = Client()  # Customize as necessary
 
 # Declare the numpy array types for Cython
 ctypedef cnp.float64_t DTYPE_t  # Define a floating-point type for numpy arrays
@@ -143,12 +152,19 @@ cdef class EnsembleKalmanFilter:
         # Step 2: create a lazy Dask task for each ensemble member
         ensemble_tasks = [delayed(forecast_single_member)(i, k, statevec_ens, self.params, grid, bedfun, modelfun, run_modelfun, nd, Q) for i in range(N)]
 
+        # Trigger computation in the background
+        futures = dask.persist(*ensemble_tasks)
+
+        # Ask for more thread workers
+        #client.cluster.scale(4)
+
         # execute the tasks in parallel
-        updated_ensemble = compute(*ensemble_tasks)  
+        #updated_ensemble = compute(*ensemble_tasks)  
+        updated_ensemble = dask.compute(*futures)
 
         # convert the result back to a numpy array
+        #statevec_ens = np.array(updated_ensemble).T
         statevec_ens = np.array(updated_ensemble).T
-        #statevec_ens = np.array(updated_ensemble)
 
         # Step 3: Update the ensemble state
         # for i in range(N):
@@ -171,6 +187,138 @@ cdef class EnsembleKalmanFilter:
 
         return statevec_bg, statevec_ens, statevec_ens_mean, Cov_model
 
+    ''''
+    # Using Dask Futures API to parallelize the the Forecast step
+    def EnKF_forecast_fapi(self, int k, int N, cnp.ndarray statevec_bg, cnp.ndarray statevec_ens, cnp.ndarray statevec_ens_mean, object grid, object bedfun, object modelfun, object run_modelfun, int nd, cnp.ndarray Q):
+        """
+        Perform the forecast step of the Ensemble Kalman Filter (EnKF) using Dask Futures API for parallelization.
+        
+        Parameters:
+        k - Current time step index
+        N - Number of ensemble members
+        statevec_bg - Background state vector
+        statevec_ens - State vector ensemble
+        grid, bedfun, modelfun - Model functions
+        run_modelfun - Function to run the model
+        nd - Dimensionality of the noise vector
+        Q - Covariance matrix for process noise
+        
+        Returns:
+        - Updated state vector and forecasted ensemble
+        """
+
+        client = Client()  # Start a Dask client
+
+        # Step 1: Update the background state vector
+        statevec_bg[:-1, k+1] = np.squeeze(run_modelfun(statevec_bg[:-1, k], self.params, grid, bedfun, modelfun))
+        statevec_bg[-1, k+1] = self.params["facemelt"][k+1] / self.params["uscale"]
+
+        # Step 2: create a lazy Dask task for each ensemble member
+        ensemble_tasks = [client.submit(forecast_single_member, i, k, statevec_ens, self.params, grid, bedfun, modelfun, run_modelfun, nd, Q) for i in range(N)]
+
+        # Gather the results for local processing
+        updated_ensemble = client.gather(ensemble_tasks)    
+
+        # convert the result back to a numpy array
+        #statevec_ens = np.array(updated_ensemble).T
+
+       # Step 4: Compute the mean of the forecasted ensemble
+        statevec_ens_mean[:, k + 1] = np.mean(updated_ensemble, axis=1)
+        #statevec_ens_mean[:, k + 1] = np.mean(statevec_ens, axis=1)
+
+        # Step 5: Forecast error covariance matrix
+        #diff = statevec_ens - statevec_ens_mean[:, k + 1].reshape(-1, 1)
+        diff = statevec_ens - np.tile(statevec_ens_mean[:, k+1].reshape(-1, 1), N)
+        Cov_model = (1 / (N - 1)) * diff @ diff.T
+
+        return statevec_bg, statevec_ens, statevec_ens_mean, Cov_model
+
+    #Cython function with OpenMP parallelization
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cpdef cnp.ndarray[double, ndim=1] forecast_single_member_omp(self, int i, int k, cnp.ndarray[double, ndim=2] statevec_ens, dict params, object grid, object bedfun, object modelfun, object run_modelfun, int nd, cnp.ndarray[double, ndim=2] Q) nogil:
+        """
+        Function to forecast a single ensemble member without requiring the GIL.
+        This version uses Cython-compatible memoryviews and C functions.
+        """
+
+        cdef int j
+        cdef double[:, :] Q_mv = Q  # Memoryview for Q
+        cdef double[:] statevec_member = statevec_ens[:, i]  # Memoryview for the state vector
+        cdef double[:] huxg_temp  # Temporary forecast state vector
+        cdef double[nd] nos  # Array for process noise
+
+        # Copy parameters to Cython variables before releasing the GIL
+        cdef double facemelt = params["facemelt"][k+1]
+        cdef double uscale = params["uscale"]
+
+        # Run the model function to forecast the state for the ensemble member
+        with gil:  # `run_modelfun` is a Python object, so acquire GIL
+            huxg_temp = np.squeeze(run_modelfun(statevec_member[:-1], params, grid, bedfun, modelfun))
+
+        # Generate noise without GIL using a C random function
+        # Replace this section with a proper multivariate normal sample if required
+        for j in range(nd):
+            nos[j] = (rand() / RAND_MAX) * 2.0 - 1.0  # Generate noise values in range [-1, 1]
+
+        # Update state ensemble with noise and forecast values
+        for j in range(len(huxg_temp)):
+            statevec_member[j] = huxg_temp[j] + nos[j]
+        
+        # Add final state variable
+        statevec_member[-1] = facemelt / uscale + nos[len(huxg_temp)]
+
+        return statevec_member
+
+    
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    def EnKF_forecast_omp(self, int k, int N, cnp.ndarray[double, ndim=2] statevec_bg, cnp.ndarray[double, ndim=2] statevec_ens, cnp.ndarray[double, ndim=2] statevec_ens_mean, object grid, object bedfun, object modelfun, object run_modelfun, int nd, cnp.ndarray[double, ndim=2] Q):
+        """
+        Perform the forecast step of the Ensemble Kalman Filter (EnKF) using OpenMP parallelization with Cython.
+
+        Parameters:
+        k - Current time step index
+        N - Number of ensemble members
+        statevec_bg - Background state vector
+        statevec_ens - State vector ensemble
+        grid, bedfun, modelfun - Model functions
+        run_modelfun - Function to run the model
+        nd - Dimensionality of the noise vector
+        Q - Covariance matrix for process noise
+
+        Returns:
+        - Updated state vector and forecasted ensemble
+        """
+        cdef int i  # Declare index variable for better performance
+
+        # Step 1: Update the background state vector (Keep GIL here as it uses Python functions)
+        statevec_bg[:-1, k+1] = np.squeeze(run_modelfun(statevec_bg[:-1, k], self.params, grid, bedfun, modelfun))
+        statevec_bg[-1, k+1] = self.params["facemelt"][k+1] / self.params["uscale"]
+
+        # Convert numpy arrays to Cython-compatible memoryviews
+        cdef double[:, :] statevec_ens_mv = statevec_ens
+        cdef double[:, :] statevec_bg_mv = statevec_bg
+        cdef double[:, :] statevec_ens_mean_mv = statevec_ens_mean
+
+        # Step 2: OpenMP parallelization for forecast step (Remove `nogil=True` in `prange` and manage GIL manually)
+        with nogil:  # Release GIL before entering parallel section
+            with parallel():  # OpenMP parallelization
+                for i in prange(N):  # Use prange without `nogil=True`
+                    # Call a function that is compatible with `nogil` or use `with gil` if necessary
+                    with gil:  # Acquire GIL temporarily to call Python function if necessary
+                        statevec_ens_mv[:, i] = self.forecast_single_member_omp(i, k, statevec_ens_mv, self.params, grid, bedfun, modelfun, run_modelfun, nd, Q)
+
+        # Step 3: Compute the mean of the forecasted ensemble (Requires GIL, so done outside `nogil` block)
+        statevec_ens_mean_mv[:, k + 1] = np.mean(statevec_ens_mv, axis=1)
+
+        # Step 4: Compute forecast error covariance matrix (Requires GIL, as it uses numpy)
+        cdef cnp.ndarray[double, ndim=2] diff = statevec_ens_mv - np.tile(statevec_ens_mean_mv[:, k+1].reshape(-1, 1), N)
+        cdef cnp.ndarray[double, ndim=2] Cov_model = (1 / (N - 1)) * diff @ diff.T
+
+        return statevec_bg_mv, statevec_ens_mv, statevec_ens_mean_mv, Cov_model
+    '''
+
     def model_run_with_EnKF(self, int nt,  int N, cnp.ndarray statevec_bg,\
                          cnp.ndarray statevec_ens, cnp.ndarray statevec_ens_mean, \
                          cnp.ndarray statevec_ens_full, object grid, object bedfun, \
@@ -187,6 +335,9 @@ cdef class EnsembleKalmanFilter:
 
             # Forecast step
             statevec_bg, statevec_ens, statevec_ens_mean, Cov_model = self.EnKF_forecast(k, N, statevec_bg, statevec_ens, statevec_ens_mean, grid, bedfun, modelfun, run_modelfun, nd, Q)
+
+            # Forecast step with OpenMP parallelization
+            #statevec_bg, statevec_ens, statevec_ens_mean, Cov_model = self.EnKF_forecast_omp(k, N, statevec_bg, statevec_ens, statevec_ens_mean, grid, bedfun, modelfun, run_modelfun, nd, Q)
 
             # Check for observations at time step k+1
             if ts[k+1] in ts_obs:
