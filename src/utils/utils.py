@@ -10,6 +10,7 @@
 import numpy as np
 import jax.numpy as jnp
 from collections.abc import Iterable
+from scipy.stats import norm
 
 # --- helper functions ---
 def isiterable(obj):
@@ -184,3 +185,23 @@ class UtilsFunctions:
         float: The RMSE value.
         """
         return np.sqrt(np.mean((truth - estimate) ** 2))
+
+    # --- Create synthetic observations ---
+    def _create_synthetic_observations(self,statevec_true):
+        """create synthetic observations"""
+        nd, nt = statevec_true.shape
+        hdim = nd // self.params["num_state_vars"]
+
+        # create synthetic observations
+        hu_obs = np.zeros((nd,self.params["nt_m"]))
+        ind_m = self.params["ind_m"]
+        km = 0
+        for step in range(nt):
+            if (km<self.params["nt_m"]) and (step+1 == ind_m[km]):
+                hu_obs[:,km] = statevec_true[:,step+1]
+                km += 1
+
+        obs_dist = norm(loc=0,scale=self.params["sig_obs"])
+        hu_obs = hu_obs + obs_dist.rvs(size=hu_obs.shape)
+
+        return hu_obs
