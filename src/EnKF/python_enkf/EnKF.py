@@ -4,30 +4,38 @@
 # @description: Conatins the class for analysis steps all Ensemble Kalman Filter (EnKF)
 #              EnKF include both Stochastic and Deterministic EnKF options: EnKF,
 #              EnSRF, DEnKF, and EnTKF.
+#             - The class further includes parallelized forecast and analysis steps with
+#               MPI, Dask, Ray, and Multiprocessing.
 # =============================================================================
 
+import os, sys
 import numpy as np
 from scipy.stats import multivariate_normal
 
-class Analysis:
-    def __init__(self, Cov_obs, Cov_model, Observation_function, Obs_Jacobian=None, parameters=None, taper_matrix=None):
+class EnsembleKalmanFilter:
+    def __init__(self, Observation_vec=None, Cov_obs=None, Cov_model=None, \
+                 Observation_function=None, Obs_Jacobian=None, parameters=None, taper_matrix=None, parallel_flag="serial"):
         """
         Initializes the Analysis class for the Ensemble Kalman Filter (EnKF).
         
         Parameters:
         Observation_function: Callable - Observation function mapping state space to observation space.
+        observation_vec: ndarray - Observation vector (m x 1).
         Obs_Jacobian: Callable - Jacobian of the observation function.
         Cov_obs: ndarray - Observation covariance matrix (m x m).
         Cov_model: ndarray - Model covariance matrix (n x n).
         taper: ndarray - Covariance taper matrix (n x n).
-        params: dict - Dictionary containing parameters like "m_obs" and others.
+        params: dict - Dictionary containing parameters like "m_obs" and others.\
+        parallel_flag: str - Flag for parallelization (serial,MPI, Dask, Ray, Multiprocessing).
         """
+        self.Observation_vec        = Observation_vec
         self.Cov_obs                = Cov_obs
         self.Cov_model              = Cov_model
         self.Obs_Jacobian           = Obs_Jacobian
         self.parameters             = parameters
         self.taper_matrix           = taper_matrix
         self.Observation_function   = Observation_function
+        self.parallel_flag          = parallel_flag
 
     def _compute_kalman_gain(self):
         """Compute the Kalman gain based on the Jacobian of the observation function."""
@@ -36,13 +44,65 @@ class Analysis:
         KalGain = self.Cov_model @ Jobs.T @ inv_matrix
         return KalGain
     
-    def EnKF_Analysis(self, ensemble, Observation_vec):
+    # Forecast step
+    def forecast_step(self, ensemble, solver, forecast_step_single, Q_err, **model_kwags):
+        """
+        Forecast step for the Ensemble Kalman Filter (EnKF).
+        
+        Parameters:
+            forecast_step_single: Callable - Function for the forecast step of each ensemble member.
+            Q_err: ndarray - Process noise matrix.
+            parallel_flag: str - Flag for parallelization (serial,MPI, Dask, Ray, Multiprocessing).
+            **model_kwags: dict - Keyword arguments for the model.
+        
+        Returns:
+            ensemble: ndarray - Updated ensemble matrix.
+        """
+        if self.parallel_flag == "serial":
+            # Serial forecast step
+            _, Nens = ensemble.shape # Get the number of ensemble members
+
+            # Loop over the ensemble members
+            for ens in range(Nens):
+                ensemble[:,ens] = forecast_step_single(solver, ensemble[:,ens],\
+                                             Q_err, self.parameters, **model_kwags)
+            return ensemble
+        elif self.parallel_flag == "MPI":
+            pass
+        elif self.parallel_flag == "Dask":
+            # Parallel forecast step using Dask
+            import dask
+            import dask.array as da
+
+            # Convert the ensemble to a dask array
+            ensemble_dask = da.from_array(ensemble, chunks=(ensemble.shape[0], ensemble.shape[1]//2))
+
+            # distribute the ensemble members to the workers
+            ensemble_tasks = [dask.delayed(forecast_step_single)(solver, ensemble_dask[:,i], Q_err, self.parameters, **model_kwags) for i in range(ensemble.shape[1])]
+
+            # compute all ensemble members concurrently
+            ensemble = da.compute(*ensemble_tasks)
+
+            # update the ensemble matrix
+            for ens in range(ensemble.shape[1]):
+                ensemble[:,ens] = ensemble[ens]
+
+            return ensemble
+
+        elif self.parallel_flag == "Ray":
+            pass
+        elif self.parallel_flag == "Multiprocessing":
+            pass
+        else:
+            raise ValueError("Invalid parallel flag. Choose from 'serial', 'MPI', 'Dask', 'Ray', 'Multiprocessing'.")
+
+    # Analysis steps
+    def EnKF_Analysis(self, ensemble):
         """
         Stochastic Ensemble Kalman Filter (EnKF) analysis step.
         
         Parameters:
             ensemble: ndarray - Ensemble matrix (n x N).
-            Observation_vec: ndarray - Observation vector (m x 1).
         
         Returns:
             ensemble_analysis: updated ensemble matrix (n x N).
@@ -52,7 +112,7 @@ class Analysis:
         KalGain = self._compute_kalman_gain()
 
         n,N = ensemble.shape
-        m   = Observation_vec.shape[0] 
+        m   =self.Observation_vec.shape[0] 
 
         # compute virtual observations and ensemble analysis
         virtual_observations  = np.zeros((m,N))
@@ -60,7 +120,7 @@ class Analysis:
 
         for i in range(N):
             # Generate virtual observations
-            virtual_observations[:,i] =  Observation_vec + multivariate_normal.rvs(mean=np.zeros(m), cov=self.Cov_obs)
+            virtual_observations[:,i] =  self.Observation_vec+ multivariate_normal.rvs(mean=np.zeros(m), cov=self.Cov_obs)
             # Compute the analysis step
             ensemble_analysis[:,i] = ensemble[:,i] + KalGain @ (virtual_observations[:,i] - self.Observation_function(ensemble[:,i]))
 
@@ -70,13 +130,12 @@ class Analysis:
 
         return ensemble_analysis, analysis_error_cov
        
-    def DEnKF_Analysis(self, ensemble, Observation_vec):
+    def DEnKF_Analysis(self, ensemble):
         """
         Deterministic Ensemble Kalman Filter (DEnKF) analysis step.
         
         Parameters:
             ensemble: ndarray - Ensemble matrix (n x N).
-            Observation_vec: ndarray - Observation vector (m x 1).
         
         Returns:
             ensemble_analysis: updated ensemble matrix (n x N).
@@ -86,13 +145,13 @@ class Analysis:
         KalGain = self._compute_kalman_gain()
 
         n,N = ensemble.shape
-        m   = Observation_vec.shape[0] 
+        m   =self.Observation_vec.shape[0] 
 
         # compute ensemble mean
         ensemble_forecast_mean = np.mean(ensemble, axis=1)
 
         # compute the anlysis mean
-        analysis_mean = ensemble_forecast_mean + KalGain @ (Observation_vec - self.Observation_function(ensemble_forecast_mean))
+        analysis_mean = ensemble_forecast_mean + KalGain @ (self.Observation_vec- self.Observation_function(ensemble_forecast_mean))
 
         # compute the forecast and analysis anomalies
         forecast_anomalies = np.zeros_like(ensemble)
@@ -110,13 +169,12 @@ class Analysis:
 
         return ensemble_analysis, analysis_error_cov
     
-    def EnRSKF_Analysis(self, ensemble, Observation_vec):
+    def EnRSKF_Analysis(self, ensemble):
         """
         Deterministic Ensemble Square Root Filter (EnSRF) analysis step.
         
         Parameters:
             ensemble: ndarray - Ensemble matrix (n x N).
-            Observation_vec: ndarray - Observation vector (m x 1).
         
         Returns:
             ensemble_analysis: updated ensemble matrix (n x N).
@@ -128,7 +186,7 @@ class Analysis:
         # compute the mean of the forecast ensemble
         ensemble_forecast_mean = np.mean(ensemble, axis=1)
 
-        obs_anomaly = Observation_vec.reshape(-1,1) - self.Observation_function(ensemble)
+        obs_anomaly =self.Observation_vec.reshape(-1,1) - self.Observation_function(ensemble)
 
         V =  self.Observation_function(self.Cov_model)
         IN = self.Cov_obs + V@V.T
@@ -144,13 +202,12 @@ class Analysis:
 
         return ensemble_analysis, analysis_error_cov
     
-    def EnTKF_Analysis(self, ensemble, Observation_vec):
+    def EnTKF_Analysis(self, ensemble):
         """
         Ensemble Transform Kalman Filter (EnTKF) analysis step.
         
         Parameters:
             ensemble: ndarray - Ensemble matrix (n x N).
-            Observation_vec: ndarray - Observation vector (m x 1).
         
         Returns:
             ensemble_analysis: updated ensemble matrix (n x N).
@@ -160,7 +217,7 @@ class Analysis:
         # compute the mean of the forecast ensemble
         ensemble_forecast_mean = np.mean(ensemble, axis=1)
 
-        obs_anomaly = Observation_vec.reshape(-1,1) - self.Observation_function(ensemble)
+        obs_anomaly =self.Observation_vec.reshape(-1,1) - self.Observation_function(ensemble)
 
         _obs_operator = self.Observation_function(self.Cov_model)
 

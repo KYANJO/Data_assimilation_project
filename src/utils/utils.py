@@ -8,6 +8,7 @@
 
 # import libraries
 import numpy as np
+import re
 import jax.numpy as jnp
 from collections.abc import Iterable
 from scipy.stats import norm
@@ -205,3 +206,63 @@ class UtilsFunctions:
         hu_obs = hu_obs + obs_dist.rvs(size=hu_obs.shape)
 
         return hu_obs
+    
+# --- calculate localization coefficients ---
+def calculate_localization_coefficients(radius, distances, method='Gauss', verbose=False):
+    """
+    Calculate spatial decorrelation coefficients using a specified method.
+
+    Args:
+        radius (float): Decorrelation radius.
+        distances (array-like): Distances for coefficient calculation.
+        method (str): Localization method ('Gauss', 'Cosine', 'Gaspari_Cohn', etc.).
+        verbose (bool): If True, print warnings for zero radius.
+
+    Returns:
+        coefficients: Decorrelation coefficients, scalar if input is scalar.
+    """
+    # Define supported methods and check inputs
+    supported_methods = ['gauss', 'cosine', 'cosine_squared', 'gaspari_cohn', 'exp3', 'cubic', 'quadro', 'step']
+    if method.lower() not in supported_methods:
+        raise ValueError(f"Unsupported method '{method}'. Supported methods: {supported_methods}")
+
+    # Process distance inputs
+    is_scalar = np.isscalar(distances)
+    distances = np.atleast_1d(distances).astype(float)
+
+    # Return zeros for zero radius unless distances are also zero
+    if radius == 0:
+        if verbose: print("Radius is zero; assuming delta function at zero distance.")
+        coefficients = (distances == 0).astype(float)
+        return coefficients[0] if is_scalar else coefficients
+
+    # Calculate thresholds for non-zero radius
+    thresh_map = {
+        'gauss': radius, 'exp3': radius, 'cosine': radius * 2.3167,
+        'cosine_squared': radius * 3.2080, 'gaspari_cohn': radius * 1.7386,
+        'cubic': radius * 1.8676, 'quadro': radius * 1.7080
+    }
+    thresh = thresh_map.get(method.lower(), radius)
+
+    # Initialize coefficients based on methods
+    scaled_dist = distances / thresh
+    if method.lower() == 'gauss':
+        coefficients = np.exp(-0.5 * scaled_dist ** 2)
+    elif method.lower() == 'exp3':
+        coefficients = np.exp(-0.5 * scaled_dist ** 3)
+    elif method.lower() == 'cosine':
+        coefficients = np.where(distances <= thresh, (1 + np.cos(scaled_dist * np.pi)) / 2, 0)
+    elif method.lower() == 'cosine_squared':
+        coefficients = np.where(distances <= thresh, ((1 + np.cos(scaled_dist * np.pi)) / 2) ** 2, 0)
+    elif method.lower() == 'gaspari_cohn':
+        coefficients = np.where(distances <= thresh, 1 - scaled_dist ** 2 * (5 / 3 - scaled_dist ** 3 / 4), 0)
+    elif method.lower() == 'cubic':
+        coefficients = np.where(distances <= thresh, (1 - scaled_dist ** 3) ** 3, 0)
+    elif method.lower() == 'quadro':
+        coefficients = np.where(distances <= thresh, (1 - scaled_dist ** 4) ** 4, 0)
+    elif method.lower() == 'step':
+        coefficients = (distances < radius).astype(float)
+
+    return coefficients[0] if is_scalar else coefficients
+
+        

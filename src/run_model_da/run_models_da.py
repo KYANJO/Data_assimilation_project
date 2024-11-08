@@ -13,8 +13,8 @@ from scipy.stats import multivariate_normal,norm
 
 # class instance of the observation operator and its Jacobian
 sys.path.insert(0, os.path.abspath('../src'))
-from utils import UtilsFunctions
-from EnKF.python_enkf.EnKF import Analysis as Analysis_step
+from utils import *
+from EnKF.python_enkf.EnKF import EnsembleKalmanFilter as EnKF
 
 os.environ["OMP_NUM_THREADS"] = "all_cores"
 
@@ -24,13 +24,14 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
     """ General function to run any kind of model with the Ensemble Kalman Filter """
 
     # unpack the data assimilation arguments
-    params            = da_args[0]   # parameters
-    Q_err             = da_args[1]   # process noise
-    hu_obs            = da_args[2]   # observation vector
-    statevec_ens      = da_args[3]   # ensemble of model state
-    statevec_bg       = da_args[4]   # background state
-    statevec_ens_mean = da_args[5]   # ensemble mean
-    statevec_ens_full = da_args[6]   # full ensemble
+    parallel_flag     = da_args[0]   # parallel flag
+    params            = da_args[1]   # parameters
+    Q_err             = da_args[2]   # process noise
+    hu_obs            = da_args[3]   # observation vector
+    statevec_ens      = da_args[4]   # ensemble of model state
+    statevec_bg       = da_args[5]   # background state
+    statevec_ens_mean = da_args[6]   # ensemble mean
+    statevec_ens_full = da_args[7]   # full ensemble
 
 
     nd, N = statevec_ens.shape
@@ -40,17 +41,20 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
     if model == "icepack":
         import icepack
         import firedrake
-        from icepack_model.run_icepack_da import background_step, forecast_step
+        from icepack_model.run_icepack_da import background_step, forecast_step_single
     else:
         raise ValueError("Other models are not yet implemented")
     
     km = 0
     for k in tqdm.trange(params["nt"]):
         # background step
-        # statevec_bg = background_step(k,model_solver,statevec_bg, hdim, **model_kwargs)
+        statevec_bg = background_step(k,model_solver,statevec_bg, hdim, **model_kwargs)
+
+        EnKFclass = EnKF(parameters=params, parallel_flag = parallel_flag)
 
         # forecast step
-        statevec_ens = forecast_step(model_solver, statevec_ens,Q_err, params, **model_kwargs)
+        statevec_ens = EnKFclass.forecast_step(statevec_ens, model_solver, forecast_step_single, \
+                                               Q_err, **model_kwargs)
 
         # Compute the ensemble mean
         statevec_ens_mean[:,k+1] = np.mean(statevec_ens, axis=1)
@@ -71,22 +75,49 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
             Cov_obs = params["sig_obs"]**2 * np.eye(2*params["m_obs"]+1)
 
             utils_functions = UtilsFunctions(params, statevec_ens)
-            analysis  = Analysis_step(Cov_obs, Cov_model, utils_functions.Obs_fun, utils_functions.JObs_fun, \
-                                 params)
-
+    
             hu_ob = utils_functions.Obs_fun(hu_obs[:,km])
 
             # Compute the analysis ensemble
             if filter_type == "EnKF":
-                statevec_ens, Cov_model = analysis.EnKF_Analysis(statevec_ens, hu_ob)
+                analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
+                                 Cov_model= Cov_model, \
+                                 Observation_function=utils_functions.Obs_fun, \
+                                 Obs_Jacobian=utils_functions.JObs_fun, \
+                                 parameters=  params,\
+                                 parallel_flag=   parallel_flag)
+                
+                statevec_ens, Cov_model = analysis.EnKF_Analysis(statevec_ens)
             elif filter_type == "DEnKF":
-                statevec_ens, Cov_model = analysis.DEnKF_Analysis(statevec_ens, hu_ob)
+                analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
+                                 Cov_model= Cov_model, \
+                                 Observation_function=utils_functions.Obs_fun, \
+                                 Obs_Jacobian=utils_functions.JObs_fun, \
+                                 parameters=  params,\
+                                 parallel_flag=   parallel_flag)
+                
+                statevec_ens, Cov_model = analysis.DEnKF_Analysis(statevec_ens)
             elif filter_type == "EnRSKF":
-                statevec_ens, Cov_model = analysis.EnRSKF_Analysis(statevec_ens, hu_ob)
+                analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
+                                 Cov_model= Cov_model, \
+                                 Observation_function=utils_functions.Obs_fun, \
+                                 parameters=  params,\
+                                 parallel_flag=   parallel_flag)
+                
+                statevec_ens, Cov_model = analysis.EnRSKF_Analysis(statevec_ens)
             elif filter_type == "EnTKF":
-                statevec_ens, Cov_model = analysis.EnTKF_Analysis(statevec_ens, hu_ob)
+                analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
+                                 Cov_model= Cov_model, \
+                                 Observation_function=utils_functions.Obs_fun, \
+                                 parameters=  params,\
+                                 parallel_flag=   parallel_flag)
+                
+                statevec_ens, Cov_model = analysis.EnTKF_Analysis(statevec_ens)
 
             statevec_ens_mean[:,k+1] = np.mean(statevec_ens, axis=1)
+
+            # apply localization
+            # coefficients 
 
             km += 1
 
