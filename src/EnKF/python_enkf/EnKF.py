@@ -68,31 +68,118 @@ class EnsembleKalmanFilter:
                                              Q_err, self.parameters, **model_kwags)
             return ensemble
         elif self.parallel_flag == "MPI":
-            pass
+            # Parallel forecast step using MPI
+            from mpi4py import MPI
+
+            comm = MPI.COMM_WORLD
+            rank = comm.Get_rank()
+            size = comm.Get_size()
+            
+            # Get the number of ensemble members
+            _, Nens = ensemble.shape
+            
+            # Determine the workload per process
+            chunk_size = Nens // size
+            remainder = Nens % size
+
+            # Divide ensemble among processes
+            if rank < remainder:
+                start_idx = rank * (chunk_size + 1)
+                end_idx = start_idx + chunk_size + 1
+            else:
+                start_idx = rank * chunk_size + remainder
+                end_idx = start_idx + chunk_size
+
+            local_ensemble = ensemble[:, start_idx:end_idx]
+
+            # Perform forecast step on the local chunk of ensemble members
+            for ens in range(local_ensemble.shape[1]):
+                local_ensemble[:, ens] = forecast_step_single(solver, local_ensemble[:, ens], 
+                                                            Q_err, self.parameters, **model_kwags)
+
+            # Gather the results from all processes
+            gathered_ensemble = comm.gather(local_ensemble, root=0)
+
+            if rank == 0:
+                # Concatenate the results from all processes into a single array
+                ensemble = np.hstack(gathered_ensemble)
+                return ensemble
+            else:
+                return None
+            
+        # Parallel forecast step using Dask
         elif self.parallel_flag == "Dask":
-            # Parallel forecast step using Dask
             import dask
             import dask.array as da
+            from dask import compute, delayed
+            import copy
 
-            # Convert the ensemble to a dask array
-            ensemble_dask = da.from_array(ensemble, chunks=(ensemble.shape[0], ensemble.shape[1]//2))
+            _, Nens = ensemble.shape
 
-            # distribute the ensemble members to the workers
-            ensemble_tasks = [dask.delayed(forecast_step_single)(solver, ensemble_dask[:,i], Q_err, self.parameters, **model_kwags) for i in range(ensemble.shape[1])]
+            # Create delayed tasks for each ensemble member
+            tasks = [
+                    delayed(forecast_step_single)(solver, ensemble[:,ens].copy, Q_err, self.parameters, **model_kwags)
+                    for ens in range(Nens)
+                ]
 
-            # compute all ensemble members concurrently
-            ensemble = da.compute(*ensemble_tasks)
+            # Compute all tasks in parallel and collect the results
+            results = compute(*tasks)
 
-            # update the ensemble matrix
-            for ens in range(ensemble.shape[1]):
-                ensemble[:,ens] = ensemble[ens]
+            # Update the ensemble matrix
+            ensemble = np.array(results).T
 
             return ensemble
 
+        # Parallel forecast step using Ray
         elif self.parallel_flag == "Ray":
-            pass
+            import ray
+
+            _, Nens = ensemble.shape
+
+            # Initialize Ray
+            ray.init(ignore_reinit_error=True)
+
+            @ray.remote
+            def ray_worker(solver, ensemble_member, Q_err, parameters, model_kwargs):
+                """
+                Remote function to perform forecast step for a single ensemble member.
+                This function will be executed in parallel by Ray workers.
+                """
+                return forecast_step_single(solver, ensemble_member, Q_err, parameters, **model_kwargs)
+            
+            _, Nens = ensemble.shape
+
+            # Launch tasks in parallel using Ray
+            futures = [
+                ray_worker.remote(solver, ensemble[:, ens], Q_err, self.parameters, **model_kwargs)
+                for ens in range(Nens)
+            ]
+
+            # Collect results from all Ray tasks
+            results = ray.get(futures)
+
+            # Convert the list of results back to a numpy array and transpose
+            ensemble = np.array(results).T
+            return ensemble
+        
+        # Parallel forecast step using Multiprocessing
         elif self.parallel_flag == "Multiprocessing":
-            pass
+            import multiprocessing as mp
+
+            _, Nens = ensemble.shape
+
+            # Define a helper function to handle arguments for each worker
+            def worker(ens_idx):
+                return forecast_step_single(solver, ensemble[:, ens_idx], Q_err, self.parameters, **model_kwargs)
+
+            # Create a pool of workers
+            with mp.Pool(mp.cpu_count()) as pool:
+                # Use pool.map to parallelize the forecast step
+                results = pool.map(worker, range(Nens))
+
+            # Convert the list of results back to a numpy array and transpose
+            ensemble = np.array(results).T
+            return ensemble
         else:
             raise ValueError("Invalid parallel flag. Choose from 'serial', 'MPI', 'Dask', 'Ray', 'Multiprocessing'.")
 

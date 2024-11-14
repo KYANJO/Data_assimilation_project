@@ -195,7 +195,9 @@ class UtilsFunctions:
 
         # create synthetic observations
         hu_obs = np.zeros((nd,self.params["nt_m"]))
-        ind_m = self.params["ind_m"]
+        # ind_m = self.params["ind_m"]
+        ind_m = (np.linspace(int(self.params["dt_m"]/self.params["dt"]), \
+                             int(self.params["nt"]), int(self.params["m_obs"]))).astype(int)
         km = 0
         for step in range(nt):
             if (km<self.params["nt_m"]) and (step+1 == ind_m[km]):
@@ -206,6 +208,48 @@ class UtilsFunctions:
         hu_obs = hu_obs + obs_dist.rvs(size=hu_obs.shape)
 
         return hu_obs
+    
+
+def localization_matrix(euclidean_distance, cutoff_radius, method):
+
+    import re
+
+    if re.match(r'\Agaspari(_|-)*cohn\Z', method, re.IGNORECASE):
+        print('Using Gaspari-Cohn function')
+        f = np.zeros(len(cutoff_radius))
+        for i in range(len(cutoff_radius)):
+            c = euclidean_distance
+            r = cutoff_radius[i]
+            if 0 <= abs(r) <= c:
+                f[i] = -1/4*(abs(r)/c)**5 + 1/2*(abs(r)/c)**4 + 5/8*(abs(r)/c)**3 - 5/3*(abs(r)/c)**2 + 1
+            elif c <= abs(r) <= 2*c:
+                f[i] = 1/12*(abs(r)/c)**5 - 1/2*(abs(r)/c)**4 + 5/8*(abs(r)/c)**3 + 5/3*(abs(r)/c)**2 - 5*(abs(r)/c) + 4 - 2/3*(abs(r)/c)**-1
+            elif abs(r) > 2*c:
+                f[i] = 0
+        # the localization matrix is a diagonal matrix
+        return np.diag(f)
+
+# --- Addaptive localization module ---
+def adaptive_localization(ensemble, forecast_cov ,euclidean_distance, cutoff_radius, method):
+    """
+    @description: This function performs adaptive localization on the forecast covariance matrix based
+                  on an adaptive radius and localization method.
+    Args:
+        ensemble: ndarray (n x N) - Ensemble matrix of model states (n: state size, N: ensemble size).
+        forecast_cov: ndarray (n x n) - Forecast covariance matrix.
+        euclidean_distance: ndarray (n x n) - Euclidean distance matrix.
+        cutoff_radius: float - Decorrelation radius.
+        method: str - Localization method ('Gauss', 'Cosine', 'Gaspari_Cohn', etc.).
+
+    Returns:
+        localized_cov: ndarray (n x n) - Localized covariance matrix.
+    """
+
+    localization_matrix = localization_matrix(euclidean_distance, cutoff_radius, method)
+
+    #  weighted covariance matrix
+    localized_cov = np.multiply(localization_matrix, forecast_cov)
+    return localized_cov
     
 # --- calculate localization coefficients ---
 def calculate_localization_coefficients(radius, distances, method='Gauss', verbose=False):

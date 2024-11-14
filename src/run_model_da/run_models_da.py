@@ -4,10 +4,14 @@
 # @date: 2024-11-4
 # @author: Brian Kyanjo
 # ==============================================================================
-
+    
 import sys
 import os
+import ast
 import tqdm
+import h5py
+import json
+import argparse
 import numpy as np
 from scipy.stats import multivariate_normal,norm
 
@@ -17,8 +21,7 @@ from utils import *
 from EnKF.python_enkf.EnKF import EnsembleKalmanFilter as EnKF
 
 os.environ["OMP_NUM_THREADS"] = "all_cores"
-
-
+                        
 # ---- Run model with EnKF ----
 def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kwargs): 
     """ General function to run any kind of model with the Ensemble Kalman Filter """
@@ -33,7 +36,6 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
     statevec_ens_mean = da_args[6]   # ensemble mean
     statevec_ens_full = da_args[7]   # full ensemble
 
-
     nd, N = statevec_ens.shape
     hdim = nd // params["num_state_vars"]
 
@@ -45,16 +47,18 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
     else:
         raise ValueError("Other models are not yet implemented")
     
+    
+    ind_m = (np.linspace(int(params["dt_m"]/params["dt"]), int(params["nt"]), int(params["m_obs"]))).astype(int)
+    
     km = 0
+    radius = 2
     for k in tqdm.trange(params["nt"]):
         # background step
         statevec_bg = background_step(k,model_solver,statevec_bg, hdim, **model_kwargs)
 
         EnKFclass = EnKF(parameters=params, parallel_flag = parallel_flag)
 
-        # forecast step
-        statevec_ens = EnKFclass.forecast_step(statevec_ens, model_solver, forecast_step_single, \
-                                               Q_err, **model_kwargs)
+        statevec_ens = EnKFclass.forecast_step(statevec_ens, model_solver, forecast_step_single, Q_err, **model_kwargs)
 
         # Compute the ensemble mean
         statevec_ens_mean[:,k+1] = np.mean(statevec_ens, axis=1)
@@ -68,7 +72,7 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
 
         # Analysis step
         # if ts[k+1] in ts_obs:
-        ind_m = params["ind_m"]
+        # ind_m = params["ind_m"]
         if (km < params["nt_m"]) and (k+1 == ind_m[km]):
             # idx_obs = np.where(ts[k+1] == ts_obs)[0]
 
@@ -116,9 +120,19 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
 
             statevec_ens_mean[:,k+1] = np.mean(statevec_ens, axis=1)
 
-            # apply localization
-            # coefficients 
-
+            # Adaptive localization
+            # radius = 2
+            # calculate the correlation coefficient with the background ensembles
+            # R = (np.corrcoef(statevec_ens))**2
+            # #  compute the euclidean distance between the grid points
+            # cutoff_distance = np.linspace(0, 5e3, Cov_model.shape[0])
+            # #  the distance at which the correlation coefficient is less than 1/sqrt(N-1) is the radius
+            # # radius = 
+            # method = "Gaspari-Cohn"
+            # localization_weights = localization_matrix(radius, cutoff_distance, method)
+            # # perform a schur product to localize the covariance matrix
+            # Cov_model = np.multiply(Cov_model, localization_weights)
+            
             km += 1
 
             # inflate the ensemble
@@ -127,4 +141,47 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
         # Save the ensemble
         statevec_ens_full[:,:,k+1] = statevec_ens
 
-    return statevec_ens_full, statevec_ens_mean, statevec_bg
+    # if parallel_flag == "MPI": save the results to file
+    if parallel_flag == "MPI":
+        # create a folder for the results
+        if not os.path.exists("results"):
+            os.makedirs("results")
+        with h5py.File(f"results/{model}.h5", "w") as f:
+            f.create_dataset("statevec_ens_full", data=statevec_ens_full)
+            f.create_dataset("statevec_ens_mean", data=statevec_ens_mean)
+            f.create_dataset("statevec_bg", data=statevec_bg) 
+        return None
+    else:
+        return statevec_ens_full, statevec_ens_mean, statevec_bg
+
+    # return statevec_ens_full, statevec_ens_mean, statevec_bg
+
+# ---- Main function to run the model with the EnKF ----
+# if __name__ == "__main__":
+#     # add tools to the path
+#     sys.path.insert(0, os.path.abspath('../src/utils'))
+#     import tools
+#     args = sys.argv[1:]
+#     if len(args) < 2:
+#         print("Usage: python run_models_da.py <str> <str> <str> <list> <dictionary>")
+#         sys.exit(1)
+    
+#     # Parse each argument
+#     parsed_args = [tools.parse_argument(arg) for arg in args]
+#     # print(parsed_args)
+
+#     # unpack the arguments
+#     model        = parsed_args[0]
+#     model_solver = parsed_args[1]
+#     filter_type  = parsed_args[2]
+#     da_args      = parsed_args[3]
+#     model_kwargs = parsed_args[4]
+    
+    # print(da_args)
+    # # parsed_result = tools.parse_complex_list(da_args)
+    # # print(parsed_result)
+
+    # # Run the model with the EnKF
+    # run_model_with_filter(model, model_solver, filter_type, da_args, model_kwargs)
+
+
