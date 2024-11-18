@@ -42,7 +42,7 @@ def run_simualtion(solver, h, u, a, b, dt, h0, **kwargs):
     return h, u
 
 # --- Forecast step ---
-def forecast_step_single(solver, ensemble, Q_err,params, **kwags):
+def forecast_step_single(solver, ens, ensemble, nd, Q_err,params, **kwags):
     """ensemble: packs the state variables:h,u,v of a single ensemble member
                  where h is thickness, u and v are the x and y components 
                  of the velocity field
@@ -60,21 +60,23 @@ def forecast_step_single(solver, ensemble, Q_err,params, **kwags):
     V = kwags.get('V', None)
    
     # nd, _ = ensemble.shape
-    nd = len(ensemble)
+    # nd = len(ensemble)
     ndim = nd // params["num_state_vars"]
+    # print("ndim:",ndim)
+    # nd = ndim * params["num_state_vars"]
     
     # unpack h,u,v from the ensemble member
-    h_vec = ensemble[:ndim,]
-    u_vec = ensemble[ndim:2*ndim,]
-    v_vec = ensemble[2*ndim:,]
+    h_vec = ensemble[:ndim,ens]
+    u_vec = ensemble[ndim:2*ndim,ens]
+    v_vec = ensemble[2*ndim:,ens]
 
     # create firedrake functions from the ensemble members
     h = Function(Q)
-    h.dat.data[:] = h_vec[:]
+    h.dat.data[:] = h_vec.copy()
 
     u = Function(V)
-    u.dat.data[:,0] = u_vec[:]
-    u.dat.data[:,1] = v_vec[:]
+    u.dat.data[:,0] = u_vec.copy()
+    u.dat.data[:,1] = v_vec.copy()
 
     # call the ice stream model to update the state variables
     h, u = run_simualtion(solver, h, u, a, b, dt, h0, fluidity = A, friction = C)
@@ -83,11 +85,11 @@ def forecast_step_single(solver, ensemble, Q_err,params, **kwags):
     noise = multivariate_normal.rvs(mean=np.zeros(nd), cov=Q_err)
 
     # update the ensemble members with the new state variables and noise 
-    ensemble[:ndim,]        = h.dat.data_ro       + noise[:ndim]
-    ensemble[ndim:2*ndim,]  = u.dat.data_ro[:,0]  + noise[ndim:2*ndim]
-    ensemble[2*ndim:,]      = u.dat.data_ro[:,1]  + noise[2*ndim:]
+    ensemble[:ndim,ens]        = h.dat.data_ro       + noise[:ndim]
+    ensemble[ndim:2*ndim,ens]  = u.dat.data_ro[:,0]  + noise[ndim:2*ndim]
+    ensemble[2*ndim:,ens]      = u.dat.data_ro[:,1]  + noise[2*ndim:]
 
-    return ensemble
+    return ensemble[:,ens]
 
 # --- Background step ---
 def background_step(k,solver,statevec_bg, hdim, **kwags):
@@ -143,8 +145,9 @@ def initialize_ensemble(statevec_bg, statevec_ens, statevec_ens_mean, statevec_e
     h_indx = int(np.ceil(nurged_entries+1))
     # u_indx = int(np.ceil(u_nurge_ic+1))
     u_indx = 1
-    h_bump = np.linspace(-h_nurge_ic,0,h_indx)
-    u_bump = np.linspace(-u_nurge_ic,0,u_indx)
+    # h_bump = np.linspace(-h_nurge_ic,0,h_indx)
+    h_bump = np.random.uniform(-h_nurge_ic,0,h_indx)
+    u_bump = np.random.uniform(-u_nurge_ic,0,u_indx)
 
     h_with_bump = h_bump + h0.dat.data_ro[:h_indx]
     u_with_bump = u_bump + u0.dat.data_ro[:u_indx,0]
@@ -171,6 +174,9 @@ def initialize_ensemble(statevec_bg, statevec_ens, statevec_ens_mean, statevec_e
 
     for i in range(N):
         # intial thickness perturbed by bump
+        h_bump = np.random.uniform(-h_nurge_ic,0,h_indx)
+        h_with_bump = h_bump + h0.dat.data_ro[:h_indx]
+        h_perturbed = np.concatenate((h_with_bump, h0.dat.data_ro[h_indx:]))
         statevec_ens[:hdim,i] = h_perturbed
 
         # intial velocity unperturbed
@@ -227,3 +233,63 @@ def generate_true_state(solver, statevec_true,params, **kwags):
         statevec_true[2*hdim:,k+1]      = u.dat.data_ro[:,1]
 
     return statevec_true
+
+def generate_nurged_state(solver, statevec_nurged,params,**kwags):
+    """generate the nurged state of the model"""
+    nd, nt = statevec_nurged.shape
+    nt = nt - 1
+    hdim = nd // params["num_state_vars"]
+
+    # unpack the **kwargs
+    a = kwags.get('a', None)
+    b = kwags.get('b', None)
+    dt = kwags.get('dt', None)
+    A = kwags.get('A', None)
+    C = kwags.get('C', None)
+    Q = kwags.get('Q', None)
+    V = kwags.get('V', None)
+    h0 = kwags.get('h0', None)
+    u0 = kwags.get('u0', None)
+    h_nurge_ic      = kwags.get('h_nurge_ic', None)
+    u_nurge_ic      = kwags.get('u_nurge_ic', None)
+    nurged_entries  = kwags.get('nurged_entries', None)
+
+    #  create a bump -100 to 0
+    h_indx = int(np.ceil(nurged_entries+1))
+    # u_indx = int(np.ceil(u_nurge_ic+1))
+    u_indx = 1
+    # h_bump = np.linspace(-h_nurge_ic,0,h_indx)
+    h_bump = np.random.uniform(-h_nurge_ic,0,h_indx)
+    u_bump = np.random.uniform(-u_nurge_ic,0,u_indx)
+
+    h_with_bump = h_bump + h0.dat.data_ro[:h_indx]
+    u_with_bump = u_bump + u0.dat.data_ro[:u_indx,0]
+    v_with_bump = u_bump + u0.dat.data_ro[:u_indx,1]
+
+    h_perturbed = np.concatenate((h_with_bump, h0.dat.data_ro[h_indx:]))
+    u_perturbed = np.concatenate((u_with_bump, u0.dat.data_ro[u_indx:,0]))
+    v_perturbed = np.concatenate((v_with_bump, u0.dat.data_ro[u_indx:,1]))
+
+
+    statevec_nurged[:hdim,0]       = h_perturbed
+    statevec_nurged[hdim:2*hdim,0] = u_perturbed
+    statevec_nurged[2*hdim:,0]     = v_perturbed
+
+    # h = h0.copy(deepcopy=True)
+    # u = u0.copy(deepcopy=True)
+    # update h0 and u0 with the nurged values
+
+    h = Function(Q)
+    u = Function(V)
+    h.dat.data[:] = h_perturbed
+    u.dat.data[:,0] = u_perturbed
+    u.dat.data[:,1] = v_perturbed
+    for k in tqdm.trange(nt):
+        # call the ice stream model to update the state variables
+        h, u = run_simualtion(solver, h, u, a, b, dt, h0, fluidity = A, friction = C)
+
+        statevec_nurged[:hdim,k+1]        = h.dat.data_ro
+        statevec_nurged[hdim:2*hdim,k+1]  = u.dat.data_ro[:,0]
+        statevec_nurged[2*hdim:,k+1]      = u.dat.data_ro[:,1]
+
+    return statevec_nurged
