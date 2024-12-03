@@ -9,6 +9,7 @@
 # =============================================================================
 
 import os, sys
+import re
 import numpy as np
 from scipy.stats import multivariate_normal
 
@@ -58,16 +59,18 @@ class EnsembleKalmanFilter:
         Returns:
             ensemble: ndarray - Updated ensemble matrix.
         """
-        if self.parallel_flag == "serial":
+        
+        if re.match(r"\Aserial\Z", self.parallel_flag, re.IGNORECASE):
             # Serial forecast step
-            _, Nens = ensemble.shape # Get the number of ensemble members
+            nd, Nens = ensemble.shape # Get the number of ensemble members
 
             # Loop over the ensemble members
             for ens in range(Nens):
-                ensemble[:,ens] = forecast_step_single(solver, ensemble[:,ens],\
+                ensemble[:,ens] = forecast_step_single(solver, ens, ensemble, nd, \
                                              Q_err, self.parameters, **model_kwags)
             return ensemble
-        elif self.parallel_flag == "MPI":
+       
+        elif re.match(r"\AMPI\Z", self.parallel_flag, re.IGNORECASE):
             # Parallel forecast step using MPI
             from mpi4py import MPI
 
@@ -76,7 +79,7 @@ class EnsembleKalmanFilter:
             size = comm.Get_size()
             
             # Get the number of ensemble members
-            _, Nens = ensemble.shape
+            nd , Nens = ensemble.shape
             
             # Determine the workload per process
             chunk_size = Nens // size
@@ -94,7 +97,7 @@ class EnsembleKalmanFilter:
 
             # Perform forecast step on the local chunk of ensemble members
             for ens in range(local_ensemble.shape[1]):
-                local_ensemble[:, ens] = forecast_step_single(solver, local_ensemble[:, ens], 
+                local_ensemble[:, ens] = forecast_step_single(solver, local_ensemble[:, ens], nd, 
                                                             Q_err, self.parameters, **model_kwags)
 
             # Gather the results from all processes
@@ -108,17 +111,17 @@ class EnsembleKalmanFilter:
                 return None
             
         # Parallel forecast step using Dask
-        elif self.parallel_flag == "Dask":
+        elif re.match(r"\ADask\Z", self.parallel_flag, re.IGNORECASE):
             import dask
             import dask.array as da
             from dask import compute, delayed
             import copy
 
-            _, Nens = ensemble.shape
+            nd, Nens = ensemble.shape
 
             # Create delayed tasks for each ensemble member
             tasks = [
-                    delayed(forecast_step_single)(solver, ensemble[:,ens].copy, Q_err, self.parameters, **model_kwags)
+                    delayed(forecast_step_single)(solver, ens, ensemble, nd, Q_err, self.parameters, **model_kwags)
                     for ens in range(Nens)
                 ]
 
@@ -131,10 +134,10 @@ class EnsembleKalmanFilter:
             return ensemble
 
         # Parallel forecast step using Ray
-        elif self.parallel_flag == "Ray":
+        elif re.match(r"\ARay\Z", self.parallel_flag, re.IGNORECASE):
             import ray
 
-            _, Nens = ensemble.shape
+            nd, Nens = ensemble.shape
 
             # Initialize Ray
             ray.init(ignore_reinit_error=True)
@@ -145,7 +148,7 @@ class EnsembleKalmanFilter:
                 Remote function to perform forecast step for a single ensemble member.
                 This function will be executed in parallel by Ray workers.
                 """
-                return forecast_step_single(solver, ensemble_member, Q_err, parameters, **model_kwargs)
+                return forecast_step_single(solver, ensemble_member, nd, Q_err, parameters, **model_kwargs)
             
             _, Nens = ensemble.shape
 
@@ -163,14 +166,14 @@ class EnsembleKalmanFilter:
             return ensemble
         
         # Parallel forecast step using Multiprocessing
-        elif self.parallel_flag == "Multiprocessing":
+        elif re.match(r"\AMultiprocessing\Z", self.parallel_flag, re.IGNORECASE):
             import multiprocessing as mp
 
-            _, Nens = ensemble.shape
+            nd, Nens = ensemble.shape
 
             # Define a helper function to handle arguments for each worker
             def worker(ens_idx):
-                return forecast_step_single(solver, ensemble[:, ens_idx], Q_err, self.parameters, **model_kwargs)
+                return forecast_step_single(solver, ensemble[:, ens_idx], nd, Q_err, self.parameters, **model_kwargs)
 
             # Create a pool of workers
             with mp.Pool(mp.cpu_count()) as pool:
@@ -180,6 +183,9 @@ class EnsembleKalmanFilter:
             # Convert the list of results back to a numpy array and transpose
             ensemble = np.array(results).T
             return ensemble
+        elif re.match(r"\APyomp\Z", self.parallel_flag, re.IGNORECASE):
+            # python openmp parallelization
+            raise NotImplementedError("Pyomp parallelization is not yet implemented.")
         else:
             raise ValueError("Invalid parallel flag. Choose from 'serial', 'MPI', 'Dask', 'Ray', 'Multiprocessing'.")
 
