@@ -38,33 +38,34 @@ From: ubuntu:latest
     python3 firedrake-install
 
     # Activate the Firedrake virtual environment 
-    # . firedrake/bin/activate
+    . firedrake/bin/activate
 
     # Install icepack
-    # pip install git+https://github.com/icepack/Trilinos.git
-    # pip install git+https://github.com/icepack/pyrol.git
-    # git clone https://github.com/icepack/icepack.git
-    # pip install ./icepack
+    pip install git+https://github.com/icepack/Trilinos.git
+    pip install git+https://github.com/icepack/pyrol.git
+    git clone https://github.com/icepack/icepack.git
+    pip install ./icepack
 
-    # # Run a test
-    # pytest -s icepack/test/ice_shelf_test.py
+    # Run a test
+    pytest -s icepack/test/ice_shelf_test.py
 
-    # # add virtaul environments
-    # pip install ipykernel
-    # python3 -m ipykernel install --user --name=firedrake
+    # add virtaul environments
+    pip install ipykernel
+    python3 -m ipykernel install --user --name=firedrake
 
-    # #install gmsh
-    # apt-get -qy install gmsh
+    #install gmsh
+    apt-get -qy install gmsh
 
 %environment
     export HDF5_MPI=ON
     export OMP_NUM_THREADS=1
     export OPENBLAS_NUM_THREADS=1
+    . /firedrake/bin/activate
 
 %runscript
     #!/bin/bash
     # commands to execute when the container is lauched
-    # . /firedrake/bin/activate #activate the firedrake env
+    . /firedrake/bin/activate 
     python3 "$@"
     exec /bin/bash
 
