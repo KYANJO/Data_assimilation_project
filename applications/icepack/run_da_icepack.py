@@ -5,9 +5,9 @@
 # =============================================================================
 
 # --- Synthetic ice stream example ---
+print(" Importing firedrake and other packages ... ")
 import firedrake
 import sys, os
-import jax
 import h5py
 import numpy as np
 import tqdm
@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 # Lx, Ly = 50e3, 12e3
 # nx, ny = 48, 32
 Lx, Ly = 50e2, 12e2
-nx, ny = 24, 16
+nx, ny = 16, 10
 mesh = firedrake.RectangleMesh(nx, ny, Lx, Ly)
 
 Q = firedrake.FunctionSpace(mesh, "CG", 2)
@@ -50,7 +50,7 @@ from icepack.constants import (
 h_in = s_in - b_in
 ds_dx = (s_out - s_in) / Lx
 tau_D = -rho_I * g * h_in * ds_dx
-print(f"{1000*tau_D} kPa")
+print(f"Driving stress = {1000*tau_D} kPa")
 
 # --- Guess for the initial velocity ---
 u_in, u_out = 20, 2400
@@ -58,6 +58,7 @@ velocity_x = u_in + (u_out - u_in) * (x / Lx) ** 2
 u0 = firedrake.interpolate(firedrake.as_vector((velocity_x, 0)), V)
 
 # --- Choosing the friciton coefficient ---
+print("Importing icepack ...")
 import icepack
 
 T = firedrake.Constant(255.0)
@@ -108,6 +109,8 @@ from firedrake import sqrt, inner
 expr = -1e3*C*phi*sqrt(inner(u0, u0))**(1/m-1)*u0
 tau_b = firedrake.interpolate(expr, V)
 
+# --- Accumulation ---
+print("Setting accumulation ...")
 a_in = firedrake.Constant(1.7)
 a_in_p = firedrake.Constant(1.7+1.7*0.1)
 da = firedrake.Constant(-2.7)
@@ -119,10 +122,10 @@ h = h0.copy(deepcopy=True)
 u = u0.copy(deepcopy=True)
 
 # set variables and parameters
-num_years = 100
+num_years = 2
 # dt = 2.0
 # num_timesteps = int(num_years / dt)
-timesteps_per_year = 2
+timesteps_per_year = 1
 dt = 1.0 / timesteps_per_year
 num_timesteps = num_years * timesteps_per_year
 t = np.linspace(0, num_years, num_timesteps + 1)
@@ -155,7 +158,8 @@ params = {"nt": num_timesteps,
            "nt_m": m_obs,"dt_m":freq_obs}
 
 # --- true state ---
-sys.path.insert(0,'../src/models')
+print("Generating true state ...")
+sys.path.insert(0,'../../src/models')
 from icepack_model.run_icepack_da import generate_true_state
 
 statevec_true = np.zeros([params["nd"],params["nt"]+1])
@@ -167,16 +171,18 @@ kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V,
 statevec_true = generate_true_state(solver,statevec_true,params,**kwargs)
 
 # --- Observations ---
-sys.path.insert(0,'../src/utils')
+sys.path.insert(0,'../../src/utils')
 
 from utils import UtilsFunctions
 utils_funs = UtilsFunctions(params,statevec_true)
 
 # create synthetic observations
+print("Generating synthetic observations ...")
 hu_obs = utils_funs._create_synthetic_observations(statevec_true)
 # hu_obs
 
 # --- initialize the ensemble ---
+print("Initializing the ensemble ...")
 statevec_bg         = np.zeros([params["nd"],params["nt"]+1])
 statevec_ens_mean   = np.zeros_like(statevec_bg)
 statevec_ens        = np.zeros([params["nd"],params["Nens"]])
@@ -186,14 +192,17 @@ from icepack_model.run_icepack_da import initialize_ensemble
 
 # add and entry to kwargs disctionery
 kwargs["h_nurge_ic"] = 100
-kwargs["u_nurge_ic"] = 10
-kwargs["nurged_entries"] = 350
+kwargs["u_nurge_ic"] = 2.5
+kwargs["nurged_entries"] = 500
 kwargs["a"] = a_p # nurged accumulation
+kwargs['t'] = t
+kwargs['x'] = x 
+kwargs['Lx'] = Lx
 statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full = initialize_ensemble(solver, statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full, params,**kwargs)
 
-
 # --- Run the model with Data Assimilation ---
-sys.path.insert(0,'../src/run_model_da')
+print("Running the model with Data Assimilation ...")
+sys.path.insert(0,'../../src/run_model_da')
 from run_models_da import run_model_with_filter
 import tools
 
@@ -202,11 +211,12 @@ model_solver = solver_weertman
 filter_type  = "EnRSKF"  # EnKF, DEnKF, EnTKF, EnRSKF
 parallel_flag = "Serial" # serial, Multiprocessing, Dask, Ray, MPI; only serial is supported for now
 num_procs = 1
+commandlinerun = True # this script is ran through the terminal
 
-da_args = [parallel_flag, params, Q_err, hu_obs, statevec_ens, statevec_bg, statevec_ens_mean, statevec_ens_full]
+da_args = [parallel_flag, params, Q_err, hu_obs, statevec_ens, statevec_bg, statevec_ens_mean, statevec_ens_full,commandlinerun]
 
 if parallel_flag == "Serial":
-    python_script = "../src/run_model_da/run_models_da.py"
+    python_script = "../../src/run_model_da/run_models_da.py"
     # tools.run_with_mpi(python_script, num_procs, model_name, model_solver, filter_type, da_args, kwargs)
     run_model_with_filter(model_name, model_solver, filter_type, *da_args, **kwargs)
     # load saved data

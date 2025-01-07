@@ -9,10 +9,10 @@
 #SBATCH -oReport-%j.out                   # Combined output and error messages file
 #SBATCH --mail-type=BEGIN,END,FAIL        # Mail preferences
 #SBATCH --mail-user=bkyanjo3@gatech.edu  # E-mail address for notifications
-cd $SLURM_SUBMIT_DIR                      # Change to working directory
+
 
 # Load module dependencies 
 module load gcc
 module load mvapich2
 
-mpiexec -n 4 apptainer exec  icepack.sif python3 test.py
+mpiexec -n 4 apptainer exec  icepack_working.sif python3 run_da_icepack.py
