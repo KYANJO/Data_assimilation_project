@@ -35,6 +35,7 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
     statevec_bg       = da_args[5]   # background state
     statevec_ens_mean = da_args[6]   # ensemble mean
     statevec_ens_full = da_args[7]   # full ensemble
+    commandlinerun    = da_args[8]   # run through the terminal
 
     nd, N = statevec_ens.shape
     hdim = nd // params["num_state_vars"]
@@ -54,7 +55,7 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
     radius = 2
     for k in tqdm.trange(params["nt"]):
         # background step
-        statevec_bg = background_step(k,model_solver,statevec_bg, hdim, **model_kwargs)
+        # statevec_bg = background_step(k,model_solver,statevec_bg, hdim, **model_kwargs)
 
         EnKFclass = EnKF(parameters=params, parallel_flag = parallel_flag)
 
@@ -142,15 +143,16 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
         statevec_ens_full[:,:,k+1] = statevec_ens
 
     # if parallel_flag == "MPI": save the results to file
-    if parallel_flag == "MPI":
+    if parallel_flag == "MPI" or commandlinerun:
         # create a folder for the results
+        print("Writing output to file ...")
         if not os.path.exists("results"):
             os.makedirs("results")
             print("Creating results folder")
         with h5py.File(f"results/{model}.h5", "w") as f:
             f.create_dataset("statevec_ens_full", data=statevec_ens_full)
             f.create_dataset("statevec_ens_mean", data=statevec_ens_mean)
-            f.create_dataset("statevec_bg", data=statevec_bg) 
+            # f.create_dataset("statevec_bg", data=statevec_bg) 
         return None
     else:
         return statevec_ens_full, statevec_ens_mean, statevec_bg

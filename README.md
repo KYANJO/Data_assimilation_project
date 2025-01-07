@@ -13,7 +13,7 @@ The supported applications are located in the `application` directory and curren
 - **Icepack**
 
 ### **Running Icepack in Containers**
-Icepack applications can now be run in containers using both **Apptainer** and **Docker**, making it suitable for high-performance computing (HPC) clusters: see /src/containers/apptainer
+Icepack applications can now be run in containers using both **Apptainer** and **Docker**, making it suitable for high-performance computing (HPC) clusters: see `/src/containers/apptainer`
 
 Each application includes either a Python script or a Jupyter notebook for execution. Detailed documentation for these scripts and notebooks is forthcoming.
 
