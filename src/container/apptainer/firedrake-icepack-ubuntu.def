@@ -36,39 +36,53 @@ From: ubuntu:latest
         python3-venv python3-requests libboost-dev libopenblas-dev \
         libncurses5-dev libgdbm-dev libnss3-dev mpich libmpich-dev gmsh
 
+    #Download and install minconda
+    mkdir -p /root/miniconda3
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /root/miniconda3/miniconda.sh
+    bash /root/miniconda3/miniconda.sh -b -u -p /root/miniconda3
+    rm /root/miniconda3/miniconda.sh
+
+    # Initialize conda for bash shell
+    /bin/bash -c 'source /root/miniconda3/etc/profile.d/conda.sh && conda init bash'
+    
+    # activate conda environment
+    export PATH="/root/miniconda3/bin:$PATH"
+    . /root/miniconda3/etc/profile.d/conda.sh
+
     # make virtual environment
-    python3 -m venv /opt/venv
-    cd /opt
+    # python3 -m venv /opt/venv
+    # cd /opt
     
     # Install required packages
-    /opt/venv/bin/pip install --no-cache-dir siphash24
-    /opt/venv/bin/pip install --no-cache-dir pyyaml
+    pip install --no-cache-dir siphash24
+    pip install --no-cache-dir pyyaml
 
     # Download and install firedrake
     curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
     python3 firedrake-install  --no-package-manager --disable-ssh --mpicc=/usr/bin/mpicc --mpicxx=/usr/bin/mpicxx --mpif90=/usr/bin/mpif90 --mpiexec=/usr/bin/mpiexec --mpihome=/usr
 
     # Activate the Firedrake virtual environment 
-    . /opt/firedrake/bin/activate
+    . /firedrake/bin/activate
 
     # Install icepack
-    /opt/venv/bin/pip install --no-cache-dir git+https://github.com/icepack/Trilinos.git
-    /opt/venv/bin/pip install --no-cache-dir git+https://github.com/icepack/pyrol.git
+    pip install --no-cache-dir git+https://github.com/icepack/Trilinos.git
+    pip install --no-cache-dir git+https://github.com/icepack/pyrol.git
     git clone https://github.com/icepack/icepack.git
-    /opt/venv/bin/pip install --no-cache-dir ./icepack
+    pip install --no-cache-dir ./icepack
     
     # add virtual environments
-    /opt/venv/bin/pip install --no-cache-dir ipykernel
+    pip install --no-cache-dir ipykernel
     python3 -m ipykernel install --user --name=firedrake
 
     export PATH=/opt/venv/bin:$PATH
 
 %environment
-    export PATH=/opt/venv/bin:$PATH
+    export PATH="/root/miniconda3/bin:$PATH"
+    # export PATH=/opt/venv/bin:$PATH
     export HDF5_MPI=ON
     export OMP_NUM_THREADS=1
     export OPENBLAS_NUM_THREADS=1
-    . /opt/firedrake/bin/activate
+    . /firedrake/bin/activate
     export PETSC_DIR=/firedrake/src/petsc
     export PETSC_ARCH=default
     export PERSISTENT_DIR="/scratch/icepack_cache"
@@ -80,9 +94,9 @@ From: ubuntu:latest
 %runscript
     #!/bin/bash
     # commands to execute when the container is launched
-    . /opt/firedrake/bin/activate 
-    # python3 "$@"
-    /opt/venv/bin/python3
+    . /firedrake/bin/activate 
+    python3 "$@"
+    # /opt/venv/bin/python3
     exec /bin/bash
     ./set_tmp_cache_dir.sh
 
@@ -96,6 +110,6 @@ From: ubuntu:latest
     This Apptainer container ubuntu-based definition configures 
     and installs the necessary dependencies of firedrake and icepack 
     plus activating their environments. To use this container, just 
-    run: 1. $ apptainer build icepack.sif ubuntu.def #this creates .sif image
+    run: 1. $ apptainer build icepack.sif firedrake-icepack-ubuntu.def #this creates .sif image
          2. $ apptainer shell icepack.sif # this starts the apptainer shell
          3. $ apptainer exec icepack.sif script.py
