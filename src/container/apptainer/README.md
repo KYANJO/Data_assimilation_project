@@ -21,7 +21,7 @@ This repository provides two container definition files:
 4. Build and interact with the container:
    - **To build the container**:
      ```bash
-     apptainer build icepack.sif `firedrake-icepack-docker.def`
+     apptainer build icepack.sif firedrake-icepack-docker.def
      ```
      This generates the `.sif` image file.
    - **To start a shell inside the container**:
