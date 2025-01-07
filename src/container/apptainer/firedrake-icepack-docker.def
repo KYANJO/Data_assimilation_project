@@ -1,9 +1,6 @@
 Bootstrap: docker
 From: bkyanjo/icepack:latest
 
-%labels
-    Version v2024.09
-
 %post
     # Update package lists and install any required packages
     apt-get update && apt-get install -y --no-install-recommends \
