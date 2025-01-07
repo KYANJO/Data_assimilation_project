@@ -146,6 +146,7 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
         # create a folder for the results
         if not os.path.exists("results"):
             os.makedirs("results")
+            print("Creating results folder")
         with h5py.File(f"results/{model}.h5", "w") as f:
             f.create_dataset("statevec_ens_full", data=statevec_ens_full)
             f.create_dataset("statevec_ens_mean", data=statevec_ens_mean)

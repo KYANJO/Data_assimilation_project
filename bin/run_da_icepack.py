@@ -119,7 +119,7 @@ h = h0.copy(deepcopy=True)
 u = u0.copy(deepcopy=True)
 
 # set variables and parameters
-num_years = 150
+num_years = 100
 # dt = 2.0
 # num_timesteps = int(num_years / dt)
 timesteps_per_year = 2

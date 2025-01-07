@@ -148,6 +148,10 @@ def initialize_ensemble(solver, statevec_bg, statevec_ens, statevec_ens_mean, st
     u_nurge_ic      = kwags.get('u_nurge_ic', None)
     nurged_entries  = kwags.get('nurged_entries', None)
 
+    t = kwags.get('t', None)
+    x = kwags.get('x', None)
+    Lx = kwags.get('Lx', None)
+
     #  create a bump -100 to 0
     h_indx = int(np.ceil(nurged_entries+1))
     # u_indx = int(np.ceil(u_nurge_ic+1))
@@ -173,6 +177,14 @@ def initialize_ensemble(solver, statevec_bg, statevec_ens, statevec_ens_mean, st
         u.dat.data[:,1] = v_perturbed
         h0 = h.copy(deepcopy=True)
         # call the solver
+        # -----------------------
+        a0 = 1.7; b0 = -2.7
+        ya  = a0*np.sin(t[1]) + a0
+        yb  = b0*np.sin(t[1]) + b0
+        a_in_p = firedrake.Constant(ya)
+        da_p = firedrake.Constant(yb)
+        a = firedrake.interpolate(a_in_p + da_p * x / Lx, Q)
+        # -----------------------
         h, u = run_simualtion(solver, h, u, a, b, dt, h0, fluidity = A, friction = C)
 
         # update the nurged state with the solution
@@ -265,6 +277,9 @@ def generate_nurged_state(solver, statevec_nurged,params,**kwags):
 
     # unpack the **kwargs
     a = kwags.get('a', None)
+    t = kwags.get('t', None)
+    x = kwags.get('x', None)
+    Lx = kwags.get('Lx', None)
     b = kwags.get('b', None)
     dt = kwags.get('dt', None)
     A = kwags.get('A', None)
@@ -324,12 +339,24 @@ def generate_nurged_state(solver, statevec_nurged,params,**kwags):
     u.dat.data[:,0] = u_perturbed
     u.dat.data[:,1] = v_perturbed
     h0 = h.copy(deepcopy=True)
+    a0 = 1.7
+    b0 = -2.7
+    t = np.linspace(0, 100, nt)
     for k in tqdm.trange(nt):
+        ya  = a0*np.sin(t[1]) + a0
+        yb  = b0*np.sin(t[1]) + b0
+        a_in_p = firedrake.Constant(ya)
+        da_p = firedrake.Constant(yb)
+        a = firedrake.interpolate(a_in_p + da_p * x / Lx, Q)
         # call the ice stream model to update the state variables
         h, u = run_simualtion(solver, h, u, a, b, dt, h0, fluidity = A, friction = C)
 
         statevec_nurged[:hdim,k+1]        = h.dat.data_ro
         statevec_nurged[hdim:2*hdim,k+1]  = u.dat.data_ro[:,0]
         statevec_nurged[2*hdim:,k+1]      = u.dat.data_ro[:,1]
+
+    # a_in_p = firedrake.Constant(ya)
+    # da_p = firedrake.Constant(yb)
+    # a_p = firedrake.interpolate(a_in_p + da_p * x / Lx, Q)
 
     return statevec_nurged
