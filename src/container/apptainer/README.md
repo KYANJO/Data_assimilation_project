@@ -1,4 +1,3 @@
-```markdown
 # Building the Firedrake Ice-Pack Container
 
 ## Prerequisites
@@ -35,5 +34,5 @@ This repository provides two container definition files:
      ```
 
 Follow these steps to successfully set up and use the Firedrake Ice-Pack container.
-``` 
+
 
