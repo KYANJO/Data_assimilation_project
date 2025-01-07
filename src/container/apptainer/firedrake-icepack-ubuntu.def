@@ -1,0 +1,95 @@
+Bootstrap: docker
+From: ubuntu:latest
+
+%files
+    set_tmp_cache_dir.sh set_tmp_cache_dir.sh
+
+%post
+    # Update package list 
+    apt-get update
+
+    chmod +x set_tmp_cache_dir.sh
+
+    ./set_tmp_cache_dir.sh
+
+    # Install essential development packages first
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        build-essential \
+        gcc-multilib \
+        libc6-dev \
+        linux-libc-dev clang flex ninja-build \
+        bison \
+        byacc \
+        libtool \
+        pkg-config 
+    
+    # install necessary OS packages
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        nano vim git curl wget \
+        libssl-dev libffi-dev make cmake gcc \
+        zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev 
+
+    # install firedrake dependencies
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        autoconf automake bison flex gfortran pkg-config libcurl4-openssl-dev \
+        pkgconf libtool libxml2-dev ninja-build python3-dev python3-pip python3-tk \
+        python3-venv libboost-dev libopenblas-dev \
+        libncurses5-dev libgdbm-dev libnss3-dev mpich libmpich-dev
+
+    # Install required packages
+    pip install --no-cache-dir siphash24
+    pip install --no-cache-dir pyyaml
+
+    # Download and install firedrake
+    curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
+    python3 firedrake-install  --no-package-manager --disable-ssh --mpicc=/usr/bin/mpicc --mpicxx=/usr/bin/mpicxx --mpif90=/usr/bin/mpif90 --mpiexec=/usr/bin/mpiexec --mpihome=/usr
+
+    # Activate the Firedrake virtual environment 
+    . /firedrake/bin/activate
+
+    # Install icepack
+    pip install --no-cache-dir git+https://github.com/icepack/Trilinos.git
+    pip install --no-cache-dir git+https://github.com/icepack/pyrol.git
+    git clone https://github.com/icepack/icepack.git
+    pip install --no-cache-dir ./icepack
+    
+    # add virtual environments
+    pip install --no-cache-dir ipykernel
+    python3 -m ipykernel install --user --name=firedrake
+    
+    #install gmsh
+    apt-get -qy install gmsh
+
+%environment
+    export HDF5_MPI=ON
+    export OMP_NUM_THREADS=1
+    export OPENBLAS_NUM_THREADS=1
+    . /firedrake/bin/activate
+    export PETSC_DIR=/firedrake/src/petsc
+    export PETSC_ARCH=default
+    export PERSISTENT_DIR="/scratch/icepack_cache"
+    export PYOP2_CACHE_DIR=$PERSISTENT_DIR/pyop2
+    export FIREDRAKE_TSFC_KERNEL_CACHE_DIR=$PERSISTENT_DIR/tsfc
+    export XDG_CACHE_HOME=$PERSISTENT_DIR/xdg
+    ./set_tmp_cache_dir.sh
+
+%runscript
+    #!/bin/bash
+    # commands to execute when the container is launched
+    . /firedrake/bin/activate 
+    python3 "$@"
+    exec /bin/bash
+    ./set_tmp_cache_dir.sh
+
+%labels
+    Author Brian Kyanjo
+    ContactEmail bkyanjo3@gatech.edu
+    Name Firedrake-icepack container
+
+%help
+    This Apptainer container ubuntu-based definition configures 
+    and installs the necessary dependencies of firedrake and icepack 
+    plus activating their environments. To use this container, just 
+    run: 1. $ apptainer build icepack.sif ubuntu.def #this creates .sif image
+         2. $ apptainer shell icepack.sif # this starts the apptainer shell
+         3. $ apptainer exec icepack.sif script.py
