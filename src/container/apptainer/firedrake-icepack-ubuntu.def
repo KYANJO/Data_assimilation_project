@@ -48,14 +48,11 @@ From: ubuntu:latest
     # activate conda environment
     export PATH="/root/miniconda3/bin:$PATH"
     . /root/miniconda3/etc/profile.d/conda.sh
-
-    # make virtual environment
-    # python3 -m venv /opt/venv
-    # cd /opt
     
     # Install required packages
     pip install --no-cache-dir siphash24
     pip install --no-cache-dir pyyaml
+    python3 -m pip install siphash24
 
     # Download and install firedrake
     curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
@@ -74,11 +71,14 @@ From: ubuntu:latest
     pip install --no-cache-dir ipykernel
     python3 -m ipykernel install --user --name=firedrake
 
-    export PATH=/opt/venv/bin:$PATH
+    # install pyomp for parallel capabilities
+    conda create --name py-omp python=3.10
+    conda activate py-omp
+    conda install -c python-for-hpc -c conda-forge pyomp
 
 %environment
     export PATH="/root/miniconda3/bin:$PATH"
-    # export PATH=/opt/venv/bin:$PATH
+    conda activate py-omp
     export HDF5_MPI=ON
     export OMP_NUM_THREADS=1
     export OPENBLAS_NUM_THREADS=1
