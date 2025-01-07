@@ -30,9 +30,9 @@ EOF
     cat << 'EOF' > /opt/firedrake/set_persistent_dir.sh
 #!/bin/sh
 
-# Check if /scratch/midway3 is available
-if [ -d "/scratch/midway3" ]; then
-    PERSISTENT_DIR="/tmp/icepack_cache"
+# Check if /scratch is available
+if [ -d "/scratch" ]; then
+    PERSISTENT_DIR="/scratch/icepack_cache"
 else
     PERSISTENT_DIR="/tmp/icepack_cache"
 fi
@@ -74,6 +74,11 @@ EOF
     . /opt/firedrake/set_persistent_dir.sh
     python3 "$@"
     exec /bin/bash
+
+%labels
+    Author Brian Kyanjo
+    ContactEmail bkyanjo3@gatech.edu
+    Name Firedrake-icepack container
 
 %help
     This Singularity container sets up the Icepack environment.
