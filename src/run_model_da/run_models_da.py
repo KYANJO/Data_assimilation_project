@@ -16,7 +16,7 @@ import numpy as np
 from scipy.stats import multivariate_normal,norm
 
 # class instance of the observation operator and its Jacobian
-sys.path.insert(0, os.path.abspath('../src'))
+sys.path.insert(0, os.path.abspath('../../src'))
 from utils import *
 from EnKF.python_enkf.EnKF import EnsembleKalmanFilter as EnKF
 
@@ -162,7 +162,7 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
 # ---- Main function to run the model with the EnKF ----
 # if __name__ == "__main__":
 #     # add tools to the path
-#     sys.path.insert(0, os.path.abspath('../src/utils'))
+#     sys.path.insert(0, os.path.abspath('../../src/utils'))
 #     import tools
 #     args = sys.argv[1:]
 #     if len(args) < 2:
