@@ -31,7 +31,7 @@ This repository includes two container definition files:
      ```
    - **Run a script using the container**:
      ```bash
-     apptainer exec icepack.sif script.py
+     apptainer exec icepack.sif test.py
      ```
 
 ## Running on SLURM
