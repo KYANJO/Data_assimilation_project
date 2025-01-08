@@ -31,7 +31,7 @@ This repository includes two container definition files:
      ```
    - **Run a script using the container**:
      ```bash
-     apptainer exec icepack.sif script.py
+     apptainer exec icepack.sif test.py
      ```
 
 ## Running on SLURM
@@ -55,12 +55,8 @@ After building the container, create a SLURM job script (`job.sh`) similar to th
 # Change to the directory from which the job was submitted
 cd $SLURM_SUBMIT_DIR
 
-# Load required modules
-module load gcc
-module load mvapich2
-
 # Run the application using the container
-mpiexec -n 4 apptainer exec icepack.sif python3 test.py
+srun -n 4 apptainer exec icepack.sif python3 test.py
 ```
 
 ### Job Submission
