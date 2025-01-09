@@ -142,49 +142,17 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
         # Save the ensemble
         statevec_ens_full[:,:,k+1] = statevec_ens
 
-    # if parallel_flag == "MPI": save the results to file
-    if parallel_flag == "MPI" or commandlinerun:
-        # create a folder for the results
-        print("Writing output to file ...")
-        if not os.path.exists("results"):
-            os.makedirs("results")
-            print("Creating results folder")
-        with h5py.File(f"results/{model}.h5", "w") as f:
-            f.create_dataset("statevec_ens_full", data=statevec_ens_full)
-            f.create_dataset("statevec_ens_mean", data=statevec_ens_mean)
-            # f.create_dataset("statevec_bg", data=statevec_bg) 
-        return None
-    else:
-        return statevec_ens_full, statevec_ens_mean, statevec_bg
-
-    # return statevec_ens_full, statevec_ens_mean, statevec_bg
-
-# ---- Main function to run the model with the EnKF ----
-# if __name__ == "__main__":
-#     # add tools to the path
-#     sys.path.insert(0, os.path.abspath('../../src/utils'))
-#     import tools
-#     args = sys.argv[1:]
-#     if len(args) < 2:
-#         print("Usage: python run_models_da.py <str> <str> <str> <list> <dictionary>")
-#         sys.exit(1)
-    
-#     # Parse each argument
-#     parsed_args = [tools.parse_argument(arg) for arg in args]
-#     # print(parsed_args)
-
-#     # unpack the arguments
-#     model        = parsed_args[0]
-#     model_solver = parsed_args[1]
-#     filter_type  = parsed_args[2]
-#     da_args      = parsed_args[3]
-#     model_kwargs = parsed_args[4]
-    
-    # print(da_args)
-    # # parsed_result = tools.parse_complex_list(da_args)
-    # # print(parsed_result)
-
-    # # Run the model with the EnKF
-    # run_model_with_filter(model, model_solver, filter_type, da_args, model_kwargs)
+    # Save output to file if commandline else return datasets#    
+    sys.path.insert(0, os.path.abspath('../../src/utils'))
+    import tools
+    datasets = tools.save_arrays_to_h5(
+    filter_type=filter_type,
+    model=model,
+    parallel_flag=parallel_flag,
+    commandlinerun=commandlinerun,
+    statevec_ens_full=statevec_ens_full,
+    statevec_ens_mean=statevec_ens_mean,
+    statevec_bg=statevec_bg
+    )
 
 

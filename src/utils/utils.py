@@ -9,7 +9,6 @@
 # import libraries
 import numpy as np
 import re
-import jax.numpy as jnp
 from collections.abc import Iterable
 from scipy.stats import norm
 
@@ -96,6 +95,8 @@ class UtilsFunctions:
         Returns:
         jax.numpy array: The bed topography values at each x location.
         """
+        import jax.numpy as jnp
+        
         # Ensure parameters are floats
         params     = self.params
         sillamp    = float(params['sillamp'])
