@@ -5,7 +5,6 @@
 # =============================================================================
 
 # --- Synthetic ice stream example ---
-print(" Importing firedrake and other packages ... ")
 import firedrake
 import sys, os
 import h5py
@@ -14,10 +13,13 @@ import tqdm
 import matplotlib.pyplot as plt
 from scipy.stats import norm, multivariate_normal
 import copy
+from firedrake import *
+from firedrake.petsc import PETSc
 
 import warnings
 warnings.filterwarnings("ignore")
 
+PETSc.Sys.Print('setting up mesh across %d processes' % COMM_WORLD.size)
 # --- Geometry and input data ---
 # an elongated fjord-like geometry (12km wide and 50km from the inflow boundary to the ice front)
 # Lx, Ly = 50e3, 12e3
@@ -50,7 +52,7 @@ from icepack.constants import (
 h_in = s_in - b_in
 ds_dx = (s_out - s_in) / Lx
 tau_D = -rho_I * g * h_in * ds_dx
-print(f"Driving stress = {1000*tau_D} kPa")
+PETSc.Sys.Print(f"Driving stress = {1000*tau_D} kPa")
 
 # --- Guess for the initial velocity ---
 u_in, u_out = 20, 2400
@@ -58,7 +60,7 @@ velocity_x = u_in + (u_out - u_in) * (x / Lx) ** 2
 u0 = firedrake.interpolate(firedrake.as_vector((velocity_x, 0)), V)
 
 # --- Choosing the friciton coefficient ---
-print("Importing icepack ...")
+PETSc.Sys.Print("Importing icepack ...")
 import icepack
 
 T = firedrake.Constant(255.0)
@@ -110,7 +112,7 @@ expr = -1e3*C*phi*sqrt(inner(u0, u0))**(1/m-1)*u0
 tau_b = firedrake.interpolate(expr, V)
 
 # --- Accumulation ---
-print("Setting accumulation ...")
+PETSc.Sys.Print("Setting accumulation ...")
 a_in = firedrake.Constant(1.7)
 a_in_p = firedrake.Constant(1.7+1.7*0.1)
 da = firedrake.Constant(-2.7)
@@ -157,8 +159,18 @@ params = {"nt": num_timesteps,
            "m_obs":m_obs, "inflation_factor":inflation_factor,
            "nt_m": m_obs,"dt_m":freq_obs}
 
+model_name   = "icepack"
+model_solver = solver_weertman
+filter_type  = "EnRSKF"  # EnKF, DEnKF, EnTKF, EnRSKF
+parallel_flag = "Serial" # serial, Multiprocessing, Dask, Ray, MPI; only serial is supported for now
+commandlinerun = True # this script is ran through the terminal
+
+# add the utils directory to path
+sys.path.insert(0, os.path.abspath('../../src/utils'))
+import tools
+
 # --- true state ---
-print("Generating true state ...")
+PETSc.Sys.Print("Generating true state ...")
 sys.path.insert(0,'../../src/models')
 from icepack_model.run_icepack_da import generate_true_state
 
@@ -170,25 +182,12 @@ kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V,
           "b":b, "dt":dt,"seed":seed}
 statevec_true = generate_true_state(solver,statevec_true,params,**kwargs)
 
-# --- Observations ---
-sys.path.insert(0,'../../src/utils')
+# --- wrong state ---
+sys.path.insert(0,'../../src/models')
+from icepack_model.run_icepack_da import generate_nurged_state
 
-from utils import UtilsFunctions
-utils_funs = UtilsFunctions(params,statevec_true)
-
-# create synthetic observations
-print("Generating synthetic observations ...")
-hu_obs = utils_funs._create_synthetic_observations(statevec_true)
-# hu_obs
-
-# --- initialize the ensemble ---
-print("Initializing the ensemble ...")
-statevec_bg         = np.zeros([params["nd"],params["nt"]+1])
-statevec_ens_mean   = np.zeros_like(statevec_bg)
-statevec_ens        = np.zeros([params["nd"],params["Nens"]])
-statevec_ens_full   = np.zeros([params["nd"],params["Nens"],params["nt"]+1])
-
-from icepack_model.run_icepack_da import initialize_ensemble
+statevec_nurged = np.zeros([params["nd"],params["nt"]+1])
+solver = solver_weertman
 
 # add and entry to kwargs disctionery
 kwargs["h_nurge_ic"] = 100
@@ -198,32 +197,47 @@ kwargs["a"] = a_p # nurged accumulation
 kwargs['t'] = t
 kwargs['x'] = x 
 kwargs['Lx'] = Lx
+
+statevec_nurged = generate_nurged_state(solver,statevec_nurged,params,**kwargs)
+
+# save both true and wrong datasets
+datasets = tools.save_arrays_to_h5(
+filter_type="true-wrong",
+model=model_name,
+parallel_flag=parallel_flag,
+commandlinerun=commandlinerun,
+statevec_true=statevec_true,
+statevec_nurged= statevec_nurged
+)
+
+# --- Observations ---
+sys.path.insert(0,'../../src/utils')
+
+from utils import UtilsFunctions
+utils_funs = UtilsFunctions(params,statevec_true)
+
+# create synthetic observations
+PETSc.Sys.Print("Generating synthetic observations ...")
+hu_obs = utils_funs._create_synthetic_observations(statevec_true)
+# hu_obs
+
+# --- initialize the ensemble ---
+PETSc.Sys.Print("Initializing the ensemble ...")
+statevec_bg         = np.zeros([params["nd"],params["nt"]+1])
+statevec_ens_mean   = np.zeros_like(statevec_bg)
+statevec_ens        = np.zeros([params["nd"],params["Nens"]])
+statevec_ens_full   = np.zeros([params["nd"],params["Nens"],params["nt"]+1])
+
+from icepack_model.run_icepack_da import initialize_ensemble
+
 statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full = initialize_ensemble(solver, statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full, params,**kwargs)
 
 # --- Run the model with Data Assimilation ---
-print("Running the model with Data Assimilation ...")
+PETSc.Sys.Print("Running the model with Data Assimilation ...")
 sys.path.insert(0,'../../src/run_model_da')
 from run_models_da import run_model_with_filter
 import tools
 
-model_name   = "icepack"
-model_solver = solver_weertman
-filter_type  = "EnRSKF"  # EnKF, DEnKF, EnTKF, EnRSKF
-parallel_flag = "Serial" # serial, Multiprocessing, Dask, Ray, MPI; only serial is supported for now
-num_procs = 1
-commandlinerun = True # this script is ran through the terminal
-
 da_args = [parallel_flag, params, Q_err, hu_obs, statevec_ens, statevec_bg, statevec_ens_mean, statevec_ens_full,commandlinerun]
 
-if parallel_flag == "Serial":
-    python_script = "../../src/run_model_da/run_models_da.py"
-    # tools.run_with_mpi(python_script, num_procs, model_name, model_solver, filter_type, da_args, kwargs)
-    run_model_with_filter(model_name, model_solver, filter_type, *da_args, **kwargs)
-    # load saved data
-    # filename = f"results/{model_name}.h5"
-    # with h5py.File(filename, "r") as f:
-    #     statevec_ens_full = f["statevec_ens_full"][:]
-    #     statevec_ens_mean = f["statevec_ens_mean"][:]
-    #     statevec_bg = f["statevec_bg"][:]
-else:
-    statevec_ens_full, statevec_ens_mean, statevec_bg = run_model_with_filter(model_name, model_solver, filter_type, *da_args, **kwargs)
+datasets = run_model_with_filter(model_name, model_solver, filter_type, *da_args, **kwargs)
