@@ -312,30 +312,30 @@ def generate_nurged_state(solver, statevec_nurged,params,**kwargs):
 #     return statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full
 
 
-def initialize_ensemble(solver, statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full, params,**kwags):
+def initialize_ensemble(solver, statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full, params,**kwargs):
     """initialize the ensemble members"""
     nd, N = statevec_ens.shape
     hdim = nd // params["num_state_vars"]
 
     # unpack the **kwargs
-    h0 = kwags.get('h0', None)
-    u0 = kwags.get('u0', None)
-    a  = kwags.get('a', None)
-    b  = kwags.get('b', None)
-    dt = kwags.get('dt', None)
-    A  = kwags.get('A', None)
-    C  = kwags.get('C', None)
-    Q  = kwags.get('Q', None)
-    V  = kwags.get('V', None)
+    h0 = kwargs.get('h0', None)
+    u0 = kwargs.get('u0', None)
+    a  = kwargs.get('a', None)
+    b  = kwargs.get('b', None)
+    dt = kwargs.get('dt', None)
+    A  = kwargs.get('A', None)
+    C  = kwargs.get('C', None)
+    Q  = kwargs.get('Q', None)
+    V  = kwargs.get('V', None)
     a_in_p = kwargs.get('a_in_p', None)
     da_p = kwargs.get('da_p', None)
-    h_nurge_ic      = kwags.get('h_nurge_ic', None)
-    u_nurge_ic      = kwags.get('u_nurge_ic', None)
-    nurged_entries  = kwags.get('nurged_entries', None)
+    h_nurge_ic      = kwargs.get('h_nurge_ic', None)
+    u_nurge_ic      = kwargs.get('u_nurge_ic', None)
+    nurged_entries  = kwargs.get('nurged_entries', None)
 
-    t = kwags.get('t', None)
-    x = kwags.get('x', None)
-    Lx = kwags.get('Lx', None)
+    t = kwargs.get('t', None)
+    x = kwargs.get('x', None)
+    Lx = kwargs.get('Lx', None)
 
     #  create a bump -100 to 0
     h_indx = int(np.ceil(nurged_entries+1))
@@ -365,8 +365,8 @@ def initialize_ensemble(solver, statevec_bg, statevec_ens, statevec_ens_mean, st
         # -----------------------
         aa  = a_in_p*(np.sin(t[1]) + 1)
         daa  = da_p*(np.sin(t[1]) + 1)
-        a_in_p = firedrake.Constant(ya)
-        da_p = firedrake.Constant(yb)
+        a_in_p = firedrake.Constant(aa)
+        da_p = firedrake.Constant(daa)
         a = firedrake.interpolate(a_in_p + da_p * x / Lx, Q)
         # -----------------------
         h, u = run_simualtion(solver, h, u, a, b, dt, h0, fluidity = A, friction = C)

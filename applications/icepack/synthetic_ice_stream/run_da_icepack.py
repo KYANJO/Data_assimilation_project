@@ -193,6 +193,7 @@ save_arrays_to_h5(
     model=enkf_params["model_name"],
     parallel_flag=enkf_params["parallel_flag"],
     commandlinerun=enkf_params["commandlinerun"],
+    degree=np.array([int(float(physical_params["degree"]))]),
     t=kwargs["t"], b_io=np.array([b_in,b_out]),
     Lxy=np.array([Lx,Ly]),nxy=np.array([nx,ny]),
     statevec_true=statevec_true,
