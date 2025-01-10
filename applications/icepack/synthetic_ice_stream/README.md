@@ -15,7 +15,7 @@ To execute the [run_da_icepack.py](./run_da_icepack.py) script, follow these ste
 
 1. **Configure Inputs**:
    - Edit the [params.yaml](./params.yaml) file to define your desired inputs and parameters.
-   - The script dynamically fetches these parameters using helper functions from the [config][./config] directory.
+   - The script dynamically fetches these parameters using helper functions from the [config/icepack-config][./../../../config/icepack-config] directory.
 
 2. **Run the Script**:
    ```bash
@@ -45,7 +45,7 @@ To execute the [run_da_icepack.py](./run_da_icepack.py) script, follow these ste
 For containerized environments (e.g., HPC clusters), you can execute the script using Apptainer/Singularity:
 
 1. **Build the Container**:
-   - Follow the instructions in the [/src/container/apptainer/](./src/container/apptainer) directory to create the container image (`icepack.sif`).
+   - Follow the instructions in the [/src/container/apptainer/](./../../../src/container/apptainer) directory to create the container image (`icepack.sif`).
 
 2. **Run the Script in the Container**:
    - Execute the script inside the container:
