@@ -8,12 +8,12 @@ This design is being extended to integrate with cloud computing services such as
 
 ## **Usage**
 
-The supported applications are located in the `application` directory and currently include:
-- **Flowline**
-- **Icepack**
+The supported applications are located in the [application](./application) directory and currently include:
+- **[Flowline](./applications/flowline/)**
+- **[Icepack](./applications/icepack/)**
 
 ### **Running Icepack in Containers**
-Icepack applications can now be run in containers using both **Apptainer** and **Docker**, making them suitable for high-performance computing (HPC) clusters. For details, see `/src/containers/apptainer`.
+Icepack applications can now be run in containers using both **Apptainer** and **Docker**, making them suitable for high-performance computing (HPC) clusters. For details, see [/src/containers/apptainer](./src/containers/apptainer).
 
 ---
 
