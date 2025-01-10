@@ -15,7 +15,7 @@ To execute the [run_da_icepack.py](./run_da_icepack.py) script, follow these ste
 
 1. **Configure Inputs**:
    - Edit the [params.yaml](./params.yaml) file to define your desired inputs and parameters.
-   - The script dynamically fetches these parameters using helper functions from the [config/icepack-config][./../../../config/icepack-config] directory.
+   - The script dynamically fetches these parameters using helper functions from the [config/icepack_config](./../../../config/icepack_config) directory.
 
 2. **Run the Script**:
    ```bash
