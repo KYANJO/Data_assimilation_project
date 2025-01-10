@@ -2,20 +2,20 @@
 
 This example demonstrates synthetic ice stream modeling using various types of ensemble Kalman filters (EnKF, DEnKF, EnTKF, and EnRSKF). You can run the example using one of two methods:
 
-1. **Notebook Interface**: Use the interactive notebook `synthetic_ice_stream_da.ipynb` for a hands-on, exploratory approach.
-2. **Terminal Execution** (Recommended for HPC platforms): Use the `run_da_icepack.py` script for high-performance and feature-rich execution.
+1. **Notebook Interface**: Use the interactive notebook [synthetic_ice_stream_da.ipynb](./synthetic_ice_stream_da.ipynb) for a hands-on, exploratory approach.
+2. **Terminal Execution** (Recommended for HPC platforms): Use the [run_da_icepack.py](./run_da_icepack.py) script for high-performance and feature-rich execution.
 
 ---
 
-### **Running with `run_da_icepack.py`**
+### **Running with [run_da_icepack.py](./run_da_icepack.py)**
 
-To execute the `run_da_icepack.py` script, follow these steps:
+To execute the [run_da_icepack.py](./run_da_icepack.py) script, follow these steps:
 
-**Note**: All parameters are centrally managed in the `params.yaml` file for ease of modification and experimentation.
+**Note**: All parameters are centrally managed in the [params.yaml](./params.yaml) file for ease of modification and experimentation.
 
 1. **Configure Inputs**:
-   - Edit the `params.yaml` file to define your desired inputs and parameters.
-   - The script dynamically fetches these parameters using helper functions from the `config` directory.
+   - Edit the [params.yaml](./params.yaml) file to define your desired inputs and parameters.
+   - The script dynamically fetches these parameters using helper functions from the [config][./config] directory.
 
 2. **Run the Script**:
    ```bash
@@ -23,7 +23,7 @@ To execute the `run_da_icepack.py` script, follow these steps:
    ```
 
 3. **Experiment with Filters**:
-   - Modify the `filter_type` parameter in the `params.yaml` file to switch between different filters:
+   - Modify the `filter_type` parameter in the [params.yaml](./params.yaml) file to switch between different filters:
      - **EnKF**: Ensemble Kalman Filter
      - **DEnKF**: Deterministic Ensemble Kalman Filter
      - **EnTKF**: Ensemble Transform Kalman Filter
@@ -36,7 +36,7 @@ To execute the `run_da_icepack.py` script, follow these steps:
      ```
 
 5. **Visualize Results**:
-   - Use the notebook `read_results.ipynb` to load and plot the results for detailed analysis.
+   - Use the notebook [read_results.ipynb](./read_results.ipynb) to load and plot the results for detailed analysis.
 
 ---
 
@@ -45,7 +45,7 @@ To execute the `run_da_icepack.py` script, follow these steps:
 For containerized environments (e.g., HPC clusters), you can execute the script using Apptainer/Singularity:
 
 1. **Build the Container**:
-   - Follow the instructions in the `/src/container/apptainer/` directory to create the container image (`icepack.sif`).
+   - Follow the instructions in the [/src/container/apptainer/](./src/container/apptainer) directory to create the container image (`icepack.sif`).
 
 2. **Run the Script in the Container**:
    - Execute the script inside the container:
