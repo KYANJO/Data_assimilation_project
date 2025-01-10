@@ -83,7 +83,7 @@ def save_arrays_to_h5(filter_type, model, parallel_flag="MPI", commandlinerun=Fa
             print(f"Rank {rank}: Writing data to {output_file}")
             with h5py.File(output_file, "w") as f:
                 for name, data in datasets.items():
-                    f.create_dataset(name, data=data)
+                    f.create_dataset(name, data=data, compression="gzip")
                     print(f"Rank {rank}: Dataset '{name}' written to file")
             print(f"Rank {rank}: Data successfully written to {output_file}")
     else:
