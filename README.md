@@ -13,7 +13,7 @@ The supported applications are located in the [application](./application) direc
 - **[Icepack](./applications/icepack/)**
 
 ### **Running Icepack in Containers**
-Icepack applications can now be run in containers using both **Apptainer** and **Docker**, making them suitable for high-performance computing (HPC) clusters. For details, see [/src/containers/apptainer](./src/containers/apptainer).
+Icepack applications can now be run in containers using both **Apptainer** and **Docker**, making them suitable for high-performance computing (HPC) clusters. For details, see [/src/container/apptainer](./src/container/apptainer/).
 
 ---
 
