@@ -54,12 +54,3 @@ For containerized environments (e.g., HPC clusters), you can execute the script 
      ```
 
 ---
-
-### **Key Features**
-
-- **Flexible Configuration**: Modify parameters in the `params.yaml` file without changing the script.
-- **High Performance**: Optimized for HPC platforms, especially when running via terminal or containers.
-- **Container Support**: Easily execute the script in controlled environments using Apptainer/Singularity.
-- **Interactive Analysis**: Leverage the Jupyter notebook for visual exploration of results.
-
----
