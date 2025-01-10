@@ -16,7 +16,7 @@ import numpy as np
 from scipy.stats import multivariate_normal,norm
 
 # class instance of the observation operator and its Jacobian
-sys.path.insert(0, os.path.abspath('../../src'))
+sys.path.insert(0, os.path.abspath('../../../src'))
 from utils import *
 from EnKF.python_enkf.EnKF import EnsembleKalmanFilter as EnKF
 
@@ -143,7 +143,7 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
         statevec_ens_full[:,:,k+1] = statevec_ens
 
     # Save output to file if commandline else return datasets#    
-    sys.path.insert(0, os.path.abspath('../../src/utils'))
+    sys.path.insert(0, os.path.abspath('../../../src/utils'))
     import tools
     datasets = tools.save_arrays_to_h5(
     filter_type=filter_type,
