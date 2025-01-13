@@ -22,6 +22,7 @@ import icepack.models.friction
 from scipy.stats import norm, multivariate_normal
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from mpi4py import MPI
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
@@ -60,7 +61,29 @@ nx, ny = int(float(physical_params["nx"])), int(float(physical_params["ny"]))
 print(f"Mesh dimensions: {Lx} x {Ly} with {nx} x {ny} elements")
 
 comm = COMM_WORLD.Split(COMM_WORLD.rank % 2)
-mesh = firedrake.RectangleMesh(nx, ny, Lx, Ly, comm=comm)
+if COMM_WORLD.rank % 2 == 0:
+   # Even ranks create a quad mesh
+   mesh = firedrake.RectangleMesh(nx, ny, Lx, Ly, quadrilateral=True, comm=comm)
+else:
+   # Odd ranks create a triangular mesh
+  mesh = firedrake.RectangleMesh(nx, ny, Lx, Ly, comm=comm)
+
+# mesh = firedrake.RectangleMesh(nx, ny, Lx, Ly, comm=comm)
+# mesh = firedrake.RectangleMesh(nx, ny, Lx, Ly)
+PETSc.Sys.Print('  rank %d owns %d elements and can access %d vertices' \
+                % (mesh.comm.rank, mesh.num_cells(), mesh.num_vertices()),
+                comm=COMM_SELF)
+
+# --- Local MPI implementation ---
+comm = MPI.COMM_WORLD   # Initialize MPI
+rank = comm.Get_rank()  # Get rank of current MPI process
+size = comm.Get_size()  # Get total number of MPI processes
+
+# #  Dimension of the mesh
+# Ndim = Lx * Ly
+# num_per_rank = Ndim // size
+# lower_bound = rank * num_per_rank
+# upper_bound = (rank + 1) * num_per_rank
 
 Q = firedrake.FunctionSpace(mesh, "CG", int(float(physical_params["degree"])))
 V = firedrake.VectorFunctionSpace(mesh, "CG", int(float(physical_params["degree"])))
@@ -167,12 +190,12 @@ kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling
           "Lx":Lx, "Ly":Ly, "nx":nx, "ny":ny, "h_nurge_ic":float(enkf_params["h_nurge_ic"]), 
           "u_nurge_ic":float(enkf_params["u_nurge_ic"]),"nurged_entries":float(enkf_params["nurged_entries"]),
          "a_in_p":float(modeling_params["a_in_p"]), "da_p":float(modeling_params["da_p"]),
+         "solver":solver_weertman
 }
 
 # --- Generate True and Nurged States ---
 PETSc.Sys.Print("Generating true state ...")
 statevec_true = generate_true_state(
-    solver_weertman,
     np.zeros([params["nd"], params["nt"] + 1]), 
     params,  
     **kwargs  
@@ -181,24 +204,25 @@ statevec_true = generate_true_state(
 PETSc.Sys.Print("Generating nurged state ...")
 kwargs["a"] = a_p # Update accumulation with nurged accumulation
 statevec_nurged = generate_nurged_state(
-    solver_weertman, 
     np.zeros([params["nd"], params["nt"] + 1]), 
     params, 
     **kwargs  
 )
 
-# --- Save True and Nurged States ---
-save_arrays_to_h5(
-    filter_type="true-wrong",
-    model=enkf_params["model_name"],
-    parallel_flag=enkf_params["parallel_flag"],
-    commandlinerun=enkf_params["commandlinerun"],
-    degree=np.array([int(float(physical_params["degree"]))]),
-    t=kwargs["t"], b_io=np.array([b_in,b_out]),
-    Lxy=np.array([Lx,Ly]),nxy=np.array([nx,ny]),
-    statevec_true=statevec_true,
-    statevec_nurged=statevec_nurged,
-)
+comm.Barrier()
+if rank == 0:
+    # --- Save True and Nurged States ---
+    save_arrays_to_h5(
+        filter_type="true-wrong",
+        model=enkf_params["model_name"],
+        parallel_flag=enkf_params["parallel_flag"],
+        commandlinerun=enkf_params["commandlinerun"],
+        degree=np.array([int(float(physical_params["degree"]))]),
+        t=kwargs["t"], b_io=np.array([b_in,b_out]),
+        Lxy=np.array([Lx,Ly]),nxy=np.array([nx,ny]),
+        statevec_true=statevec_true,
+        statevec_nurged=statevec_nurged,
+    )
 
 # --- Synthetic Observations ---
 PETSc.Sys.Print("Generating synthetic observations ...")
@@ -208,7 +232,6 @@ hu_obs = utils_funs._create_synthetic_observations(statevec_true)
 # --- Initialize Ensemble ---
 PETSc.Sys.Print("Initializing the ensemble ...")
 statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full = initialize_ensemble(
-    solver_weertman,
     np.zeros([params["nd"], params["nt"] + 1]),
     np.zeros([params["nd"], params["Nens"]]),
     np.zeros([params["nd"], params["nt"] + 1]),
@@ -232,11 +255,23 @@ da_args = [
     enkf_params["commandlinerun"],
 ]
 
-run_model_with_filter(
+statevec_ens_full, statevec_ens_mean, statevec_bg = run_model_with_filter(
     enkf_params["model_name"],
-    solver_weertman,
     enkf_params["filter_type"],
     *da_args,
     **kwargs  
 )
 
+
+# Only rank 0 writes to file
+comm.Barrier()
+if rank == 0:
+    save_arrays_to_h5(
+    filter_type=enkf_params["filter_type"],
+    model=enkf_params["model_name"],
+    parallel_flag=enkf_params["parallel_flag"],
+    commandlinerun=enkf_params["commandlinerun"],
+    statevec_ens_full=statevec_ens_full,
+    statevec_ens_mean=statevec_ens_mean,
+    statevec_bg=statevec_bg
+    )
