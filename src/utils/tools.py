@@ -67,8 +67,9 @@ def save_arrays_to_h5(filter_type, model, parallel_flag="MPI", commandlinerun=Fa
     output_file = f"{output_dir}/{filter_type}-{model}.h5"
 
     if parallel_flag == "MPI" or commandlinerun:
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
+        # comm = MPI.COMM_WORLD
+        # rank = comm.Get_rank()
+        rank = 0
         if rank == 0:
             # Create the results folder if it doesn't exist
             if not os.path.exists(output_dir):
