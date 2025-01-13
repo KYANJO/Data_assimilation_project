@@ -42,7 +42,7 @@ def run_simualtion(solver, h, u, a, b, dt, h0, **kwargs):
     return h, u
 
 # --- Forecast step ---
-def forecast_step_single(solver, ens, ensemble, nd, Q_err,params, **kwargs):
+def forecast_step_single(ens=None, ensemble=None, nd=None, Q_err=None, params=None, **kwargs):
     """ensemble: packs the state variables:h,u,v of a single ensemble member
                  where h is thickness, u and v are the x and y components 
                  of the velocity field
@@ -58,6 +58,7 @@ def forecast_step_single(solver, ens, ensemble, nd, Q_err,params, **kwargs):
     C = kwargs.get('C', None)
     Q = kwargs.get('Q', None)
     V = kwargs.get('V', None)
+    solver = kwargs.get('solver', None)
    
     # nd, _ = ensemble.shape
     # nd = len(ensemble)
@@ -92,7 +93,7 @@ def forecast_step_single(solver, ens, ensemble, nd, Q_err,params, **kwargs):
     return ensemble[:,ens]
 
 # --- Background step ---
-def background_step(k,solver,statevec_bg, hdim, **kwargs):
+def background_step(k=None,statevec_bg=None, hdim=None, **kwargs):
     """ computes the background state of the model
     Args:
         k: time step index
@@ -110,6 +111,7 @@ def background_step(k,solver,statevec_bg, hdim, **kwargs):
     C = kwargs.get('C', None)
     Q = kwargs.get('Q', None)
     V = kwargs.get('V', None)
+    solver = kwargs.get('solver', None)
 
     hb = Function(Q)
     ub = Function(V)
@@ -128,7 +130,7 @@ def background_step(k,solver,statevec_bg, hdim, **kwargs):
     return statevec_bg
 
 # --- generate true state ---
-def generate_true_state(solver, statevec_true,params, **kwargs):
+def generate_true_state(statevec_true=None,params=None, **kwargs):
     """generate the true state of the model"""
     nd, nt = statevec_true.shape
     nt = nt - 1
@@ -144,6 +146,7 @@ def generate_true_state(solver, statevec_true,params, **kwargs):
     V = kwargs.get('V', None)
     h0 = kwargs.get('h0', None)
     u0 = kwargs.get('u0', None)
+    solver = kwargs.get('solver', None)
 
     statevec_true[:hdim,0]       = h0.dat.data_ro
     statevec_true[hdim:2*hdim,0] = u0.dat.data_ro[:,0]
@@ -161,7 +164,7 @@ def generate_true_state(solver, statevec_true,params, **kwargs):
 
     return statevec_true
 
-def generate_nurged_state(solver, statevec_nurged,params,**kwargs):
+def generate_nurged_state(statevec_nurged=None,params=None,**kwargs):
     """generate the nurged state of the model"""
     nd, nt = statevec_nurged.shape
     nt = nt - 1
@@ -180,6 +183,7 @@ def generate_nurged_state(solver, statevec_nurged,params,**kwargs):
     V = kwargs.get('V', None)
     h0 = kwargs.get('h0', None)
     u0 = kwargs.get('u0', None)
+    solver = kwargs.get('solver', None)
     a_in_p = kwargs.get('a_in_p', None)
     da_p = kwargs.get('da_p', None)
     da = kwargs.get('da', None)
@@ -253,7 +257,9 @@ def generate_nurged_state(solver, statevec_nurged,params,**kwargs):
 
 
 # --- initialize the ensemble members ---
-def initialize_ensemble(solver, statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full, params,**kwargs):
+def initialize_ensemble(statevec_bg=None, statevec_ens=None, \
+                        statevec_ens_mean=None, statevec_ens_full=None, params=None,**kwargs):
+    
     """initialize the ensemble members"""
     nd, N = statevec_ens.shape
     hdim = nd // params["num_state_vars"]
@@ -268,14 +274,14 @@ def initialize_ensemble(solver, statevec_bg, statevec_ens, statevec_ens_mean, st
     C  = kwargs.get('C', None)
     Q  = kwargs.get('Q', None)
     V  = kwargs.get('V', None)
+    solver = kwargs.get('solver', None)
     h_nurge_ic      = kwargs.get('h_nurge_ic', None)
     u_nurge_ic      = kwargs.get('u_nurge_ic', None)
     nurged_entries  = kwargs.get('nurged_entries', None)
 
     # call the nurged state to initialize the ensemble
-    statevec_nurged = generate_nurged_state(solver, 
-                                            np.zeros_like(statevec_bg), params, **kwargs)
-    
+    statevec_nurged = generate_nurged_state( np.zeros_like(statevec_bg), params, **kwargs)
+                                           
     # fetch h u, and v from the nurged state
     h_perturbed = statevec_nurged[:hdim,0]
     u_perturbed = statevec_nurged[hdim:2*hdim,0]
