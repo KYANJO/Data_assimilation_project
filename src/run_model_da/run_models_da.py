@@ -14,6 +14,7 @@ import json
 import argparse
 import numpy as np
 from scipy.stats import multivariate_normal,norm
+from mpi4py import MPI
 
 # class instance of the observation operator and its Jacobian
 sys.path.insert(0, os.path.abspath('../../../src'))
@@ -21,9 +22,14 @@ from utils import *
 from EnKF.python_enkf.EnKF import EnsembleKalmanFilter as EnKF
 
 os.environ["OMP_NUM_THREADS"] = "all_cores"
-                        
+
+# --- Loop Parallelism with py-omp# 
+# from numba import njit
+# from numba.openmp import openmp_context as openmp
+
 # ---- Run model with EnKF ----
-def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kwargs): 
+# @njit
+def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs): 
     """ General function to run any kind of model with the Ensemble Kalman Filter """
 
     # unpack the data assimilation arguments
@@ -45,6 +51,8 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
         import icepack
         import firedrake
         from icepack_model.run_icepack_da import background_step, forecast_step_single
+    elif model == "Lorenz96":
+        from lorenz96_model.run_Lorenz96_da import background_step, forecast_step_single
     else:
         raise ValueError("Other models are not yet implemented")
     
@@ -58,8 +66,8 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
         # statevec_bg = background_step(k,model_solver,statevec_bg, hdim, **model_kwargs)
 
         EnKFclass = EnKF(parameters=params, parallel_flag = parallel_flag)
-
-        statevec_ens = EnKFclass.forecast_step(statevec_ens, model_solver, forecast_step_single, Q_err, **model_kwargs)
+        
+        statevec_ens = EnKFclass.forecast_step(statevec_ens, forecast_step_single, Q_err, **model_kwargs)
 
         # Compute the ensemble mean
         statevec_ens_mean[:,k+1] = np.mean(statevec_ens, axis=1)
@@ -142,17 +150,6 @@ def run_model_with_filter(model, model_solver, filter_type, *da_args, **model_kw
         # Save the ensemble
         statevec_ens_full[:,:,k+1] = statevec_ens
 
-    # Save output to file if commandline else return datasets#    
-    sys.path.insert(0, os.path.abspath('../../../src/utils'))
-    import tools
-    datasets = tools.save_arrays_to_h5(
-    filter_type=filter_type,
-    model=model,
-    parallel_flag=parallel_flag,
-    commandlinerun=commandlinerun,
-    statevec_ens_full=statevec_ens_full,
-    statevec_ens_mean=statevec_ens_mean,
-    statevec_bg=statevec_bg
-    )
+    return statevec_ens_full, statevec_ens_mean, statevec_bg
 
 
