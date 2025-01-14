@@ -30,8 +30,6 @@ import icepack.models.friction
 from run_models_da import run_model_with_filter
 from icepack_model.run_icepack_da import generate_true_state, generate_nurged_state, initialize_ensemble
 
-PETSc.Sys.Print('Setting up mesh across %d processes' % COMM_WORLD.size)
-
 # --- Load Parameters ---
 # Load parameters from a YAML file
 parameters_file = "params.yaml"
@@ -42,6 +40,7 @@ modeling_params = get_section(parameters, "modeling-parameters")
 enkf_params = get_section(parameters, "enkf-parameters")
 
 # --- Geometry and Mesh ---
+PETSc.Sys.Print('Setting up mesh across %d processes' % COMM_WORLD.size)
 Lx, Ly = int(float(physical_params["Lx"])), int(float(physical_params["Ly"]))
 nx, ny = int(float(physical_params["nx"])), int(float(physical_params["ny"]))
 print(f"Mesh dimensions: {Lx} x {Ly} with {nx} x {ny} elements")
