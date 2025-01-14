@@ -39,18 +39,3 @@ To execute the [run_da_lorenz96.py](./run_da_lorenz96.py) script, follow these s
    - Use the notebook [read_results.ipynb](./read_results.ipynb) to load and plot the results for detailed analysis.
 
 ---
-
-### **Running with Containers**
-
-For containerized environments (e.g., HPC clusters), you can execute the script using Apptainer/Singularity:
-
-1. **Build the Container**:
-   - Follow the instructions in the [/src/container/apptainer/](./../../../src/container/apptainer) directory to create the container image (`icepack.sif`).
-
-2. **Run the Script in the Container**:
-   - Execute the script inside the container:
-     ```bash
-     apptainer exec icepack.sif python run_da_lorenz96.py
-     ```
-
----
