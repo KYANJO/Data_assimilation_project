@@ -8,7 +8,7 @@ This design is being extended to integrate with cloud computing services such as
 
 ## **Usage**
 
-The supported applications are located in the [application](./application) directory and currently include:
+The supported applications are located in the [applications](./applications) directory and currently include:
 - **[Flowline](./applications/flowline/)**
 - **[Icepack](./applications/icepack/)**
 - **[Lorenz-96](./applications/lorenz-96/)**
