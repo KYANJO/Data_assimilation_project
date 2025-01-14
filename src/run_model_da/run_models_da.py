@@ -51,8 +51,8 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
         import icepack
         import firedrake
         from icepack_model.run_icepack_da import background_step, forecast_step_single
-    elif model == "Lorenz96":
-        from lorenz96_model.run_Lorenz96_da import background_step, forecast_step_single
+    elif model == "lorenz96":
+        from lorenz96_model.run_lorenz96_da import background_step, forecast_step_single
     else:
         raise ValueError("Other models are not yet implemented")
     

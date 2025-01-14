@@ -5,11 +5,17 @@
 # =============================================================================
 
 # --- Imports ---
-import os
 import sys
-import h5py
-import numpy as np
-import warnings
+import os
+
+# --- Configuration ---
+os.environ["PETSC_CONFIGURE_OPTIONS"] = "--download-mpich-device=ch3:sock"
+os.environ["OMP_NUM_THREADS"] = "1"
+
+# --- Utility imports ---
+sys.path.insert(0, '../../../config')
+from _utility_imports import *
+
 from firedrake import *
 from firedrake.petsc import PETSc
 from icepack.constants import (
@@ -19,31 +25,11 @@ from icepack.constants import (
 )
 import icepack
 import icepack.models.friction
-from scipy.stats import norm, multivariate_normal
-from tqdm import tqdm
-import matplotlib.pyplot as plt
-from mpi4py import MPI
 
-# Suppress warnings
-warnings.filterwarnings("ignore")
-
-# --- Utility Imports ---
-sys.path.insert(0, os.path.abspath('../../../src/utils'))
-from tools import save_arrays_to_h5
-from utils import UtilsFunctions
-
-sys.path.insert(0, '../../../src/models')
+# --- Utility Functions ---
+from run_models_da import run_model_with_filter
 from icepack_model.run_icepack_da import generate_true_state, generate_nurged_state, initialize_ensemble
 
-sys.path.insert(0, '../../../src/run_model_da')
-from run_models_da import run_model_with_filter
-
-sys.path.insert(0, '../../../config/icepack_config')
-from config_loader import load_yaml_to_dict, get_section
-
-# --- Configuration ---
-os.environ["PETSC_CONFIGURE_OPTIONS"] = "--download-mpich-device=ch3:sock"
-os.environ["OMP_NUM_THREADS"] = "1"
 PETSc.Sys.Print('Setting up mesh across %d processes' % COMM_WORLD.size)
 
 # --- Load Parameters ---

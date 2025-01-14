@@ -83,3 +83,44 @@ def background_step(k=None,statevec_bg=None, hdim=None, **kwargs):
     # Run the RK4 integrator to push the state forward in time
     statevec_bg = RK4(run_simulation, statevec_bg, **kwargs)# Run the RK4 integrator to push the state forward in time
     return statevec_bg
+
+# --- generate true state ---
+def generate_true_state(statevec_true=None,params=None, **kwargs):
+    """inputs: statevec_true - true state of the model
+                params - parameters of the model
+                *args - additional arguments for the model
+        outputs: statevec_true - updated true state of the model after one time step
+    """
+    # Unpack the parameters
+    nd = params['nd']
+    nt = params['nt']
+    dt = params['dt']
+    num_state_vars = params['num_state_vars']
+    u0True = kwargs.get('u0True', None)
+
+
+    # Set the initial condition
+    statevec_true[:, 0] = u0True
+
+    # Run the model forward in time
+    for k in range(nt):
+        statevec_true[:, k + 1] = RK4(run_simulation, statevec_true[:, k], **kwargs)
+
+    return statevec_true
+
+# --- initialize the ensemble members ---
+def initialize_ensemble(statevec_bg=None, statevec_ens=None, \
+                        statevec_ens_mean=None, statevec_ens_full=None, params=None,**kwargs):
+    """initialize the ensemble members"""
+    nd, N = statevec_ens.shape
+    hdim = nd // params["num_state_vars"]
+
+    u0b = kwargs.get('u0b', None)
+
+    for ens in range(N):
+        statevec_ens[:, ens] = u0b + np.random.normal(0, params['sig_b'], [nd,])
+
+    statevec_bg = u0b
+    statevec_ens_mean = u0b
+    statevec_ens_full[:,:,0] = statevec_ens
+    return statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full
