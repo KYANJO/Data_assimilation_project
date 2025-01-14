@@ -49,7 +49,6 @@ def RK4(rhs, state, **kwargs):
     return state + dt/6*(k1 + 2*k2 + 2*k3 + k4)
 
 
-
 # --- Forecast step for the Lorenz96 model ---
 def forecast_step_single(ens=None, ensemble=None, nd=None, Q_err=None, params=None, **kwargs):
     """inputs: run_simulation - function that runs the model
@@ -60,7 +59,7 @@ def forecast_step_single(ens=None, ensemble=None, nd=None, Q_err=None, params=No
     """
 
     # Run the RK4 integrator to push the state forward in time
-    ensemble = RK4(run_simulation, ensemble, **kwargs)
+    ensemble[:,ens] = RK4(run_simulation, ensemble[:,ens], **kwargs)
 
     # add noise to the state variables
     noise = multivariate_normal.rvs(mean=np.zeros(nd), cov=Q_err)
@@ -68,7 +67,7 @@ def forecast_step_single(ens=None, ensemble=None, nd=None, Q_err=None, params=No
     # update the ensemble with the noise
     ndim = nd//params['num_state_vars']
     ensemble[:,ens] = ensemble[:,ens] + noise
-
+    
     return ensemble[:,ens]
 
 # --- Background step for the Lorenz96 model ---
@@ -81,7 +80,7 @@ def background_step(k=None,statevec_bg=None, hdim=None, **kwargs):
         outputs: state - updated state of the model after one time step
     """
     # Run the RK4 integrator to push the state forward in time
-    statevec_bg = RK4(run_simulation, statevec_bg, **kwargs)# Run the RK4 integrator to push the state forward in time
+    statevec_bg[:,k+1] = RK4(run_simulation, statevec_bg[:,k], **kwargs)# Run the RK4 integrator to push the state forward in time
     return statevec_bg
 
 # --- generate true state ---
@@ -118,9 +117,9 @@ def initialize_ensemble(statevec_bg=None, statevec_ens=None, \
     u0b = kwargs.get('u0b', None)
 
     for ens in range(N):
-        statevec_ens[:, ens] = u0b + np.random.normal(0, params['sig_b'], [nd,])
+        statevec_ens[:, ens] = u0b + np.random.normal(0, params['sig_model'], [nd,])
 
-    statevec_bg = u0b
-    statevec_ens_mean = u0b
+    statevec_bg[:,0] = u0b
+    statevec_ens_mean[:,0] = u0b
     statevec_ens_full[:,:,0] = statevec_ens
     return statevec_bg, statevec_ens, statevec_ens_mean, statevec_ens_full

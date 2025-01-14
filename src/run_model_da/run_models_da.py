@@ -58,7 +58,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
     radius = 2
     for k in tqdm.trange(params["nt"]):
         # background step
-        # statevec_bg = background_step(k,model_solver,statevec_bg, hdim, **model_kwargs)
+        statevec_bg = background_step(k,statevec_bg, hdim, **model_kwargs)
 
         EnKFclass = EnKF(parameters=params, parallel_flag = parallel_flag)
         
