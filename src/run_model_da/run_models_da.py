@@ -5,19 +5,14 @@
 # @author: Brian Kyanjo
 # ==============================================================================
     
-import sys
-import os
-import ast
+# --- Imports ---
+from _utility_imports import *
 import tqdm
-import h5py
-import json
-import argparse
-import numpy as np
-from scipy.stats import multivariate_normal,norm
-from mpi4py import MPI
+
+src_dir = os.path.join(project_root, 'src')
+sys.path.insert(0, src_dir)
 
 # class instance of the observation operator and its Jacobian
-sys.path.insert(0, os.path.abspath('../../../src'))
 from utils import *
 from EnKF.python_enkf.EnKF import EnsembleKalmanFilter as EnKF
 
