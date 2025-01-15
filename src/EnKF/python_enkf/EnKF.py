@@ -188,13 +188,15 @@ class EnsembleKalmanFilter:
                     from numba import njit
                     from numba.openmp import openmp_context as openmp
                     from numba.openmp import omp_get_thread_num, omp_get_num_threads
+                    from collections import namedtuple
 
                     nd, Nens = ensemble.shape
 
                     #  get the maximum number of cores
                     MaxTHREADS = os.cpu_count()
 
-                    processed_args = {key: value for key, value in model_kwags.items()}
+                    ModelKwargs = namedtuple("ModelKwargs", model_kwags.keys())
+                    processed_args = ModelKwargs(**model_kwags)
 
                     # create a wrapper for the forecast step function to use @njit
                     @njit
