@@ -178,9 +178,42 @@ class EnsembleKalmanFilter:
             # Convert the list of results back to a numpy array and transpose
             ensemble = np.array(results).T
             return ensemble
+        
+        # python openmp parallelization
         elif re.match(r"\APyomp\Z", self.parallel_flag, re.IGNORECASE):
-            # python openmp parallelization
-            raise NotImplementedError("Pyomp parallelization is not yet implemented.")
+            # check if the Pyomp module is installed
+            try:
+                # check python version: it should be [3.9 - 3.10]
+                if sys.version_info[0] == 3 and (sys.version_info[1] > 9 or sys.version_info[1] <= 10):
+                    from numba import njit
+                    from numba.openmp import openmp_context as openmp
+                    from numba.openmp import omp_get_thread_num, omp_get_num_threads
+
+                    nd, Nens = ensemble.shape
+
+                    #  get the maximum number of cores
+                    MaxTHREADS = os.cpu_count()
+
+                    processed_args = {key: value for key, value in model_kwags.items()}
+
+                    # create a wrapper for the forecast step function to use @njit
+                    @njit
+                    def forecast_wrapper():
+                        partialEnsembles = np.zeros((nd,MaxTHREADS))
+                        with openmp("parallel shared(partialEnsembles, numThrds) private(threadID,ens,localEnsemble)"):
+                            threadID = omp_get_thread_num() #thread rank = 0...(numThreads-1)
+                            with openmp("single"): #one thread does the work, others wait
+                                numThrds = omp_get_num_threads() #get number of threads
+                            for ens in range(threadID,Nens,numThrds):
+                                partialEnsembles[:,threadID] = forecast_step_single(ens, ensemble, nd, Q_err, self.parameters, processed_args)
+                                
+                        return partialEnsembles
+
+                    return forecast_wrapper()
+                
+            except ImportError:
+                raise ImportError("Pyomp module not found. Please install it using 'conda install -c python-for-hpc -c conda-forge pyomp' of see https://github.com/Python-for-HPC/PyOMP for more details.")
+            
         else:
             raise ValueError("Invalid parallel flag. Choose from 'serial', 'MPI', 'Dask', 'Ray', 'Multiprocessing'.")
 

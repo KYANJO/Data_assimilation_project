@@ -17,11 +17,6 @@ from _utility_imports import *
 from lorenz96_model.run_lorenz96_da import generate_true_state,  initialize_ensemble
 from run_models_da import run_model_with_filter
 
-# --- Local MPI implementation ---
-comm = MPI.COMM_WORLD   # Initialize MPI
-rank = comm.Get_rank()  # Get rank of current MPI process
-size = comm.Get_size()  # Get total number of MPI processes
-
 # --- Load Parameters ---
 # Load parameters from a YAML file
 parameters_file = "params.yaml"
@@ -69,17 +64,13 @@ statevec_true = generate_true_state(
 #     **kwargs  
 # )
 
-comm.Barrier()
-if rank == 0:
-    # --- Save True and Nurged States ---
-    save_arrays_to_h5(
-        filter_type="true-wrong",
-        model=enkf_params["model_name"],
-        parallel_flag=enkf_params["parallel_flag"],
-        commandlinerun=enkf_params["commandlinerun"],
-        t=kwargs["t"], 
-        statevec_true=statevec_true,
-    )
+# load data to be written to file
+save_all_data(
+    enkf_params=enkf_params,
+    nofilter=True,
+    t=kwargs["t"],
+    statevec_true=statevec_true
+)
 
 # --- Synthetic Observations ---
 print("Generating synthetic observations ...")
@@ -119,15 +110,10 @@ statevec_ens_full, statevec_ens_mean, statevec_bg = run_model_with_filter(
     **kwargs  
 )
 
-# Only rank 0 writes to file
-comm.Barrier()
-if rank == 0:
-    save_arrays_to_h5(
-    filter_type=enkf_params["filter_type"],
-    model=enkf_params["model_name"],
-    parallel_flag=enkf_params["parallel_flag"],
-    commandlinerun=enkf_params["commandlinerun"],
+# load data to be written to file
+save_all_data(
+    enkf_params=enkf_params,
     statevec_ens_full=statevec_ens_full,
     statevec_ens_mean=statevec_ens_mean,
     statevec_bg=statevec_bg
-    )
+)

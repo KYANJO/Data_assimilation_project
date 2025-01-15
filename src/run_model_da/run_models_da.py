@@ -16,12 +16,6 @@ sys.path.insert(0, src_dir)
 from utils import *
 from EnKF.python_enkf.EnKF import EnsembleKalmanFilter as EnKF
 
-os.environ["OMP_NUM_THREADS"] = "all_cores"
-
-# --- Loop Parallelism with py-omp# 
-# from numba import njit
-# from numba.openmp import openmp_context as openmp
-
 # ---- Run model with EnKF ----
 # @njit
 def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs): 

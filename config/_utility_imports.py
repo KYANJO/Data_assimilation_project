@@ -13,7 +13,6 @@ import warnings
 from scipy.stats import norm, multivariate_normal
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from mpi4py import MPI
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
@@ -44,8 +43,7 @@ sys.path.insert(0, run_model_da_dir)
 sys.path.insert(0, config_loader_dir)
 
 # import the necessary modules
-from tools import save_arrays_to_h5
-from tools import extract_datasets_from_h5
+from tools import save_arrays_to_h5, extract_datasets_from_h5, save_all_data
 from utils import UtilsFunctions
 from icepack_config.config_loader import load_yaml_to_dict, get_section
 

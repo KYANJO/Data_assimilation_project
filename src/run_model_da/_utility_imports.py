@@ -14,7 +14,6 @@ import json
 import argparse
 import numpy as np
 from scipy.stats import multivariate_normal,norm
-from mpi4py import MPI
 
 def get_project_root():
     """Automatically determines the root of the project."""

@@ -6,9 +6,9 @@
 
 import os
 import sys
+import re
 import subprocess
 import h5py
-from mpi4py import MPI
 import numpy as np
 
 # Function to safely change directory
@@ -49,7 +49,7 @@ def install_requirements(force_install=False, verbose=False):
         raise RuntimeError("Failed to install dependencies from requirements.txt. Please check the file and try again.")
 
 # ==== saves arrays to h5 file
-def save_arrays_to_h5(filter_type, model, parallel_flag="MPI", commandlinerun=False, **datasets):
+def save_arrays_to_h5(filter_type=None, model=None, parallel_flag=None, commandlinerun=None, **datasets):
     """
     Save multiple arrays to an HDF5 file, optionally in a parallel environment (MPI).
 
@@ -67,26 +67,22 @@ def save_arrays_to_h5(filter_type, model, parallel_flag="MPI", commandlinerun=Fa
     output_file = f"{output_dir}/{filter_type}-{model}.h5"
 
     if parallel_flag == "MPI" or commandlinerun:
-        # comm = MPI.COMM_WORLD
-        # rank = comm.Get_rank()
-        rank = 0
-        if rank == 0:
-            # Create the results folder if it doesn't exist
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
-                print("Creating results folder")
+        # Create the results folder if it doesn't exist
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            print("Creating results folder")
 
-            # Remove the existing file, if any
-            if os.path.exists(output_file):
-                os.remove(output_file)
-                print(f"Rank {rank}: Existing file {output_file} removed.")
+        # Remove the existing file, if any
+        if os.path.exists(output_file):
+            os.remove(output_file)
+            print(f"Existing file {output_file} removed.")
 
-            print(f"Rank {rank}: Writing data to {output_file}")
-            with h5py.File(output_file, "w") as f:
-                for name, data in datasets.items():
-                    f.create_dataset(name, data=data, compression="gzip")
-                    print(f"Rank {rank}: Dataset '{name}' written to file")
-            print(f"Rank {rank}: Data successfully written to {output_file}")
+        print(f"Writing data to {output_file}")
+        with h5py.File(output_file, "w") as f:
+            for name, data in datasets.items():
+                f.create_dataset(name, data=data, compression="gzip")
+                print(f"Dataset '{name}' written to file")
+        print(f"Data successfully written to {output_file}")
     else:
         print("Non-MPI or non-commandline run. Returning datasets.")
         return datasets
@@ -125,3 +121,39 @@ def extract_datasets_from_h5(file_path):
 
     print("Data extraction complete.")
     return datasets
+
+# --- best for saving all data to h5 file in parallel environment
+def save_all_data(enkf_params=None, nofilter=None, **kwargs):
+    """
+    General function to save datasets based on the provided parameters.
+    """
+    # Update filter_type only if nofilter is provided
+    filter_type = "true-wrong" if nofilter else enkf_params["filter_type"]
+
+    # --- Local MPI implementation ---
+    if re.match(r"\AMPI\Z", enkf_params["parallel_flag"], re.IGNORECASE):
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD  # Initialize MPI
+        rank = comm.Get_rank()  # Get rank of current MPI process
+        size = comm.Get_size()  # Get total number of MPI processes
+
+        comm.Barrier()
+        if rank == 0:
+            save_arrays_to_h5(
+                filter_type=filter_type,  # Use updated or original filter_type
+                model=enkf_params["model_name"],
+                parallel_flag=enkf_params["parallel_flag"],
+                commandlinerun=enkf_params["commandlinerun"],
+                **kwargs
+            )
+    else:
+        save_arrays_to_h5(
+            filter_type=filter_type,  # Use updated or original filter_type
+            model=enkf_params["model_name"],
+            parallel_flag=enkf_params["parallel_flag"],
+            commandlinerun=enkf_params["commandlinerun"],
+            **kwargs
+        )
+
+
+            
