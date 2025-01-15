@@ -69,17 +69,18 @@ class EnsembleKalmanFilter:
                 ensemble[:,ens] = forecast_step_single(ens, ensemble, nd, \
                                              Q_err, self.parameters, **model_kwags)
             return ensemble
-        
+
+        # Parallel forecast step using MPI
         elif re.match(r"\AMPI\Z", self.parallel_flag, re.IGNORECASE):
             from mpi4py import MPI
-            import zlib
 
             comm = MPI.COMM_WORLD
             rank = comm.Get_rank()
 
             # Get the number of ensemble members
             nd, Nens = ensemble.shape
-            size = min(comm.Get_size(), Nens)
+
+            size = min(comm.Get_size(), Nens)  # Limit processes to ensemble size
 
             # Balanced workload
             chunk_sizes = [(Nens // size) + (1 if i < (Nens % size) else 0) for i in range(size)]
@@ -88,61 +89,20 @@ class EnsembleKalmanFilter:
             end_idx = start_idx + chunk_sizes[rank]
 
             # Local chunk
-            local_ensemble = ensemble[:, start_idx:end_idx].astype(np.float32)  # Use single precision
+            local_ensemble = ensemble[:, start_idx:end_idx]
 
             # Perform forecast step
             for ens in range(local_ensemble.shape[1]):
-                local_ensemble[:, ens] = forecast_step_single(ens, local_ensemble, nd, Q_err, self.parameters, **model_kwags)
+                local_ensemble[:, ens] = forecast_step_single( ens, local_ensemble, nd, Q_err, self.parameters, **model_kwags)
 
-            # Compress data
-            compressed_local = zlib.compress(local_ensemble.tobytes())
-
-            # Gather compressed data
-            compressed_gathered = comm.gather(compressed_local, root=0)
+            # Avoid gather; update ensemble in place
+            gathered_ensemble = comm.allgather(local_ensemble)
 
             if rank == 0:
-                # Decompress and reconstruct
-                gathered_ensemble = [np.frombuffer(zlib.decompress(c), dtype=np.float32).reshape(nd, -1)
-                                    for c in compressed_gathered]
+                # print(f"Gathered ensemble shape: {np.hstack(gathered_ensemble).shape}")
                 ensemble = np.hstack(gathered_ensemble)
-                print(f"Gathered ensemble shape: {ensemble.shape}")
 
             return ensemble
-
-        
-        # # Parallel forecast step using MPI
-        # elif re.match(r"\AMPI\Z", self.parallel_flag, re.IGNORECASE):
-        #     from mpi4py import MPI
-
-        #     comm = MPI.COMM_WORLD
-        #     rank = comm.Get_rank()
-
-        #     # Get the number of ensemble members
-        #     nd, Nens = ensemble.shape
-
-        #     size = min(comm.Get_size(), Nens)  # Limit processes to ensemble size
-
-        #     # Balanced workload
-        #     chunk_sizes = [(Nens // size) + (1 if i < (Nens % size) else 0) for i in range(size)]
-        #     displacements = [sum(chunk_sizes[:i]) for i in range(size)]
-        #     start_idx = displacements[rank]
-        #     end_idx = start_idx + chunk_sizes[rank]
-
-        #     # Local chunk
-        #     local_ensemble = ensemble[:, start_idx:end_idx]
-
-        #     # Perform forecast step
-        #     for ens in range(local_ensemble.shape[1]):
-        #         local_ensemble[:, ens] = forecast_step_single( ens, local_ensemble, nd, Q_err, self.parameters, **model_kwags)
-
-        #     # Avoid gather; update ensemble in place
-        #     gathered_ensemble = comm.allgather(local_ensemble)
-
-        #     if rank == 0:
-        #         print(f"Gathered ensemble shape: {np.hstack(gathered_ensemble).shape}")
-        #         ensemble = np.hstack(gathered_ensemble)
-
-        #     return ensemble
 
 
         # Parallel forecast step using Dask
