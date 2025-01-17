@@ -14,6 +14,7 @@ sys.path.insert(0, src_dir)
 
 # class instance of the observation operator and its Jacobian
 from utils import *
+import re
 from EnKF.python_enkf.EnKF import EnsembleKalmanFilter as EnKF
 
 # ---- Run model with EnKF ----
@@ -36,17 +37,21 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
     hdim = nd // params["num_state_vars"]
 
     # current implemented models inlcude: icepack, Lorenz96, flowline, ISSM yet to be implemented
-    if model == "icepack":
+    if re.match(r"\Aicepack\Z", model, re.IGNORECASE):
         import icepack
         import firedrake
         from icepack_model.run_icepack_da import background_step, forecast_step_single
-    elif model == "lorenz96":
+    elif re.match(r"\Alorenz96\Z", model, re.IGNORECASE):
         from lorenz96_model.run_lorenz96_da import background_step, forecast_step_single
+    elif re.match(r"\Aflowline\Z", model, re.IGNORECASE):
+        # import jax.numpy as jnp
+        # from flowline_model.run_flowline_da import background_step, forecast_step_single
+        raise ValueError("model development still underway")
+    elif re.match(r"\Aissm\Z", model, re.IGNORECASE):
+        # from issm_model.run_issm_da import background_step, forecast_step_single
+        raise ValueError("model development still underway")
     else:
         raise ValueError("Other models are not yet implemented")
-    
-    
-    ind_m = (np.linspace(int(params["dt_m"]/params["dt"]), int(params["nt"]), int(params["m_obs"]))).astype(int)
     
     km = 0
     radius = 2
@@ -61,27 +66,26 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
         # Compute the ensemble mean
         statevec_ens_mean[:,k+1] = np.mean(statevec_ens, axis=1)
 
-        # Compute the model covariance
-        diff = statevec_ens - np.tile(statevec_ens_mean[:,k+1].reshape(-1,1),N)
-        if filter_type == "EnKF" or filter_type == "DEnKF":
-            Cov_model = 1/(N-1) * diff @ diff.T
-        elif filter_type == "EnRSKF" or filter_type == "EnTKF":
-            Cov_model = 1/(N-1) * diff 
-
         # Analysis step
-        # if ts[k+1] in ts_obs:
-        # ind_m = params["ind_m"]
-        if (km < params["nt_m"]) and (k+1 == ind_m[km]):
-            # idx_obs = np.where(ts[k+1] == ts_obs)[0]
+        obs_index = model_kwargs["obs_index"]
+        if (km < params["number_obs_instants"]) and (k+1 == obs_index[km]):
 
-            Cov_obs = params["sig_obs"]**2 * np.eye(2*params["m_obs"]+1)
+            # Compute the model covariance
+            diff = statevec_ens - np.tile(statevec_ens_mean[:,k+1].reshape(-1,1),N)
+            if filter_type == "EnKF" or filter_type == "DEnKF":
+                Cov_model = 1/(N-1) * diff @ diff.T
+            elif filter_type == "EnRSKF" or filter_type == "EnTKF":
+                Cov_model = 1/(N-1) * diff 
 
-            utils_functions = UtilsFunctions(params, statevec_ens)
+            # convariance matrix for measurement noise
+            Cov_obs = params["sig_obs"][k+1]**2 * np.eye(2*params["number_obs_instants"]+1)
+
+            utils_functions = UtilsFunctions(params, statevec_ens) # Needed to update the ensembles for utils functions
     
             hu_ob = utils_functions.Obs_fun(hu_obs[:,km])
-
+            
             # Compute the analysis ensemble
-            if filter_type == "EnKF":
+            if re.match(r"\AEnKF\Z", filter_type, re.IGNORECASE):
                 analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
                                  Cov_model= Cov_model, \
                                  Observation_function=utils_functions.Obs_fun, \
@@ -90,7 +94,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
                                  parallel_flag=   parallel_flag)
                 
                 statevec_ens, Cov_model = analysis.EnKF_Analysis(statevec_ens)
-            elif filter_type == "DEnKF":
+            elif re.match(r"\ADEnKF\Z", filter_type, re.IGNORECASE):
                 analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
                                  Cov_model= Cov_model, \
                                  Observation_function=utils_functions.Obs_fun, \
@@ -99,7 +103,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
                                  parallel_flag=   parallel_flag)
                 
                 statevec_ens, Cov_model = analysis.DEnKF_Analysis(statevec_ens)
-            elif filter_type == "EnRSKF":
+            elif re.match(r"\AEnRSKF\Z", filter_type, re.IGNORECASE):
                 analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
                                  Cov_model= Cov_model, \
                                  Observation_function=utils_functions.Obs_fun, \
@@ -107,7 +111,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
                                  parallel_flag=   parallel_flag)
                 
                 statevec_ens, Cov_model = analysis.EnRSKF_Analysis(statevec_ens)
-            elif filter_type == "EnTKF":
+            elif re.match(r"\AEnTKF\Z", filter_type, re.IGNORECASE):
                 analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
                                  Cov_model= Cov_model, \
                                  Observation_function=utils_functions.Obs_fun, \
@@ -131,10 +135,12 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
             # # perform a schur product to localize the covariance matrix
             # Cov_model = np.multiply(Cov_model, localization_weights)
             
+            # update the ensemble with observations instants
             km += 1
 
             # inflate the ensemble
-            statevec_ens = utils_functions.inflate_ensemble(in_place=True)
+            utils_functions = UtilsFunctions(params, statevec_ens) # Needed to update the ensembles for inflation
+            statevec_ens = utils_functions.inflate_ensemble(in_place=True) 
 
         # Save the ensemble
         statevec_ens_full[:,:,k+1] = statevec_ens

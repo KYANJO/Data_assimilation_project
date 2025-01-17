@@ -115,9 +115,9 @@ def initialize_ensemble(statevec_bg=None, statevec_ens=None, \
     hdim = nd // params["num_state_vars"]
 
     u0b = kwargs.get('u0b', None)
-
+    B = params["sig_model"]**2 * np.eye(nd)
     for ens in range(N):
-        statevec_ens[:, ens] = u0b + np.random.normal(0, params['sig_model'], [nd,])
+        statevec_ens[:, ens] = u0b + np.random.multivariate_normal(np.zeros(nd), B)  
 
     statevec_bg[:,0] = u0b
     statevec_ens_mean[:,0] = u0b

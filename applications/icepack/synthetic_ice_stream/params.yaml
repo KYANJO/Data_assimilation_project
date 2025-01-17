@@ -30,9 +30,10 @@ modeling-parameters:
 
 enkf-parameters:
   # Ensemble Kalman Filter parameters
-  Nens: 30                # number of ensemble members
-  m_obs: 10               # number of observations
-  freq_obs: 1.5           # frequency of observations
+  Nens: 30                      # number of ensemble members
+  number_obs_instants: 10       # number of observations
+  freq_obs: 1.5                 # frequency of observations
+  obs_max_time: 2 
 
   num_state_vars: 3       # number of state variables 
 
@@ -53,6 +54,6 @@ enkf-parameters:
   model_name: "icepack"               # name of the model
   model_solver: "solver_weertman"     # name of the solver
   filter_type: "EnRSKF"               # name of the filter: EnKF, DEnKF, EnTKF, EnRSKF
-  parallel_flag: "Serial"             # parallel flag: Serial, Parallel
+  parallel_flag: "Serial"             # parallel flag: Serial, MPI
   commandlinerun: "True"              # command line run flag: True, False
  

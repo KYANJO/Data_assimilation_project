@@ -26,6 +26,27 @@ class UtilsFunctions:
         """
         self.params   = params
         self.ensemble = ensemble
+    
+    def H_matrix(self, n_model):
+        """ observation operator matrix
+        """
+        n = n_model
+
+        # Initialize the H matrix
+        H = np.zeros((self.params["number_obs_instants"] * 2 + 1, n))
+
+        # Calculate distance between measurements
+        di = int((n - 2) / (2 * self.params["number_obs_instants"]))
+
+        # Fill the H matrix
+        for i in range(1,self.params["number_obs_instants"]+1):
+            H[i-1, i * di-1] = 1
+            H[self.params["number_obs_instants"] + i - 1, int((n - 2) / 2) + i * di -1] = 1
+
+        H[self.params["number_obs_instants"] * 2, n - 2] = 1  # Final element
+
+        return H
+        
 
     def Obs_fun(self, virtual_obs):
         """
@@ -33,29 +54,14 @@ class UtilsFunctions:
         
         Parameters:
         huxg_virtual_obs (numpy array): The virtual observation vector (n-dimensional).
-        m_obs (int): The number of observations.
+        number_obs_instants (int): The number of observations.
         
         Returns:
         numpy array: The reduced observation vector.
         """
         n = virtual_obs.shape[0]
 
-        # Initialize the H matrix
-        H = np.zeros((self.params["m_obs"] * 2 + 1, n))
-
-        # Calculate distance between measurements
-        di = int((n - 2) / (2 * self.params["m_obs"]))
-
-        # Fill the H matrix
-        for i in range(self.params["m_obs"]):
-            H[i, i * di] = 1
-            H[self.params["m_obs"] + i, int((n - 2) / 2) + i * di] = 1
-
-        H[self.params["m_obs"] * 2, n - 2] = 1  # Final element
-
-        # Perform matrix multiplication
-        z = H @ virtual_obs
-        return z
+        return np.dot(self.H_matrix(n), virtual_obs)
 
     def JObs_fun(self, n_model):
         """
@@ -63,27 +69,34 @@ class UtilsFunctions:
         
         Parameters:
         n_model (int): The size of the model state vector.
-        m_obs (int): The number of observations.
+        number_obs_instants (int): The number of observations.
         
         Returns:
         numpy array: The Jacobian matrix of the observation operator.
         """
-        n = n_model
+
+        return self.H_matrix(n_model)
+    
+    # --- Create synthetic observations ---
+    def _create_synthetic_observations(self,statevec_true,ind_m):
+        """create synthetic observations"""
+        nd, nt = statevec_true.shape
+        m_obs = self.params["number_obs_instants"]
 
         # Initialize the H matrix
-        H = np.zeros((self.params["m_obs"] * 2 + 1, n))
+        H = np.zeros((m_obs * 2 + 1, m_obs))
 
-        # Calculate distance between measurements
-        di = int((n - 2) / (2 * self.params["m_obs"]))
+        # create synthetic observations
+        hu_obs = np.zeros((nd,self.params["number_obs_instants"]))
 
-        # Fill the H matrix
-        for i in range(self.params["m_obs"]):
-            H[i, i * di] = 1
-            H[self.params["m_obs"] + i, int((n - 2) / 2) + i * di] = 1
+        km = 0
+        for step in range(nt):
+            if (km<m_obs) and (step+1 == ind_m[km]):
+                hu_obs[:,km] = statevec_true[:,step+1] + norm(loc=0,scale=self.params["sig_obs"][step+1]).rvs(size=nd)
+                
+                km += 1
 
-        H[self.params["m_obs"] * 2, n - 2] = 1  # Final element
-
-        return H
+        return hu_obs
     
     def bed(self, x):
         """
@@ -188,28 +201,7 @@ class UtilsFunctions:
         """
         return np.sqrt(np.mean((truth - estimate) ** 2))
 
-    # --- Create synthetic observations ---
-    def _create_synthetic_observations(self,statevec_true):
-        """create synthetic observations"""
-        nd, nt = statevec_true.shape
-        hdim = nd // self.params["num_state_vars"]
 
-        # create synthetic observations
-        hu_obs = np.zeros((nd,self.params["nt_m"]))
-        # ind_m = self.params["ind_m"]
-        ind_m = (np.linspace(int(self.params["dt_m"]/self.params["dt"]), \
-                             int(self.params["nt"]), int(self.params["m_obs"]))).astype(int)
-        km = 0
-        for step in range(nt):
-            if (km<self.params["nt_m"]) and (step+1 == ind_m[km]):
-                hu_obs[:,km] = statevec_true[:,step+1]
-                km += 1
-
-        obs_dist = norm(loc=0,scale=self.params["sig_obs"])
-        hu_obs = hu_obs + obs_dist.rvs(size=hu_obs.shape)
-
-        return hu_obs
-    
 
 def localization_matrix(euclidean_distance, cutoff_radius, method):
 

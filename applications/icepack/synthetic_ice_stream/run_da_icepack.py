@@ -160,13 +160,12 @@ params = {
     "num_state_vars": int(float(enkf_params["num_state_vars"])),
     "nd": h0.dat.data.size * int(float(enkf_params["num_state_vars"])),
     "Nens": int(float(enkf_params["Nens"])),
-    "m_obs": int(float(enkf_params["m_obs"])),
+    "number_obs_instants": int(float(enkf_params["number_obs_instants"])),
     "inflation_factor": float(enkf_params["inflation_factor"]),
     "sig_model": float(enkf_params["sig_model"]),
     "sig_obs": float(enkf_params["sig_obs"]),
     "sig_Q": float(enkf_params["sig_Q"]),
-    "nt_m": int(float(enkf_params["m_obs"])),
-    "dt_m": int(float(enkf_params["freq_obs"])),
+    "freq_obs": int(float(enkf_params["freq_obs"])),
 }
 
 kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling_params["da"]),
@@ -175,7 +174,9 @@ kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling
           "Lx":Lx, "Ly":Ly, "nx":nx, "ny":ny, "h_nurge_ic":float(enkf_params["h_nurge_ic"]), 
           "u_nurge_ic":float(enkf_params["u_nurge_ic"]),"nurged_entries":float(enkf_params["nurged_entries"]),
          "a_in_p":float(modeling_params["a_in_p"]), "da_p":float(modeling_params["da_p"]),
-         "solver":solver_weertman
+         "solver":solver_weertman,
+          "obs_index": (np.linspace(int(params["freq_obs"]/params["dt"]), \
+                             int(params["obs_max_time"]/params["dt"]), int(params["number_obs_instants"]))).astype(int)
 }
 
 # --- Generate True and Nurged States ---

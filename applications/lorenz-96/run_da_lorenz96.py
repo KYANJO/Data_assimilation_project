@@ -26,6 +26,7 @@ physical_params = get_section(parameters, "physical-parameters")
 modeling_params = get_section(parameters, "modeling-parameters")
 enkf_params = get_section(parameters, "enkf-parameters")
 
+# --- Prepare observations and ensemble parameters ---
 # --- Ensemble Parameters ---
 params = {
     "nt": int(float(modeling_params["num_years"])/float(modeling_params["dt"])),
@@ -33,21 +34,30 @@ params = {
     "nd": int(float(enkf_params["num_state_vars"])),
     "num_state_vars": int(float(enkf_params["num_state_vars"])),
     "Nens": int(float(enkf_params["Nens"])),
-    "m_obs": int(float(enkf_params["m_obs"])),
+    "number_obs_instants": int(float(enkf_params["number_obs_instants"])),
     "inflation_factor": float(enkf_params["inflation_factor"]),
     "sig_model": float(enkf_params["sig_model"]),
-    "sig_obs": float(enkf_params["sig_obs"]),
     "sig_Q": float(enkf_params["sig_Q"]),
-    "nt_m": int(float(enkf_params["m_obs"])),
-    "dt_m": int(float(enkf_params["freq_obs"])),
+    "freq_obs": float(enkf_params["freq_obs"]),
+    "obs_max_time": int(float(enkf_params["obs_max_time"])),
 }
 
+# --- model parameters ---
 kwargs = { "dt":params["dt"], "seed":float(enkf_params["seed"]),
           "t":np.linspace(0, int(float(modeling_params["num_years"])), params["nt"] + 1), 
           "u0True": np.array([1,1,1]), "u0b": np.array([2.0,3.0,4.0]), 
           "sigma":float(physical_params["sigma"]), "beta":eval(physical_params["beta"]),
-          "rho":float(physical_params["rho"])
+          "rho":float(physical_params["rho"]),
+           "obs_index": (np.linspace(int(params["freq_obs"]/params["dt"]), \
+                             int(params["obs_max_time"]/params["dt"]), int(params["number_obs_instants"]))).astype(int)
 }
+
+# --- observations parameters ---
+sig_obs = np.zeros(params["nt"]+1)
+for i in range(len(kwargs["obs_index"])):
+    sig_obs[kwargs["obs_index"][i]] = float(enkf_params["sig_obs"])
+params["sig_obs"] = sig_obs
+# params["sig_obs"] = float(enkf_params["sig_obs"])
 
 # --- Generate True and Nurged States ---
 print("Generating true state ...")
@@ -64,18 +74,21 @@ statevec_true = generate_true_state(
 #     **kwargs  
 # )
 
+# --- Synthetic Observations ---
+print("Generating synthetic observations ...")
+utils_funs = UtilsFunctions(params, statevec_true)
+w = utils_funs._create_synthetic_observations(statevec_true,kwargs["obs_index"])
+
 # load data to be written to file
 save_all_data(
     enkf_params=enkf_params,
     nofilter=True,
-    t=kwargs["t"],
-    statevec_true=statevec_true
+    t=kwargs["t"], 
+    obs_max_time=np.array([params["obs_max_time"]]),
+    obs_index=kwargs["obs_index"],
+    statevec_true=statevec_true,
+    w=w
 )
-
-# --- Synthetic Observations ---
-print("Generating synthetic observations ...")
-utils_funs = UtilsFunctions(params, statevec_true)
-hu_obs = utils_funs._create_synthetic_observations(statevec_true)
 
 # --- Initialize Ensemble ---
 print("Initializing the ensemble ...")
@@ -95,7 +108,7 @@ da_args = [
     enkf_params["parallel_flag"],
     params,
     np.eye(params["nd"]) * params["sig_Q"] ** 2,
-    hu_obs,
+    w,
     statevec_ens,
     statevec_bg,
     statevec_ens_mean,
