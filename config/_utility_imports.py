@@ -35,6 +35,7 @@ models_dir = os.path.join(project_root, 'src', 'models')
 utils_dir = os.path.join(project_root, 'src', 'utils')
 run_model_da_dir = os.path.join(project_root, 'src', 'run_model_da')
 config_loader_dir = os.path.join(project_root, 'config')
+applications_dir = os.path.join(project_root, 'applications')
 
 # Insert the models directory at the beginning of sys.path
 sys.path.insert(0, models_dir)

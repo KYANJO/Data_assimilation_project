@@ -10,12 +10,15 @@ from _utility_imports import *
 import tqdm
 
 src_dir = os.path.join(project_root, 'src')
+applications_dir = os.path.join(project_root, 'applications')
 sys.path.insert(0, src_dir)
+sys.path.insert(0, applications_dir)
 
 # class instance of the observation operator and its Jacobian
 from utils import *
 import re
 from EnKF.python_enkf.EnKF import EnsembleKalmanFilter as EnKF
+from supported_models import SupportedModels
 
 # ---- Run model with EnKF ----
 # @njit
@@ -36,32 +39,21 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
     nd, N = statevec_ens.shape
     hdim = nd // params["num_state_vars"]
 
-    # current implemented models inlcude: icepack, Lorenz96, flowline, ISSM yet to be implemented
-    if re.match(r"\Aicepack\Z", model, re.IGNORECASE):
-        import icepack
-        import firedrake
-        from icepack_model.run_icepack_da import background_step, forecast_step_single
-    elif re.match(r"\Alorenz96\Z", model, re.IGNORECASE):
-        from lorenz96_model.run_lorenz96_da import background_step, forecast_step_single
-    elif re.match(r"\Aflowline\Z", model, re.IGNORECASE):
-        # import jax.numpy as jnp
-        # from flowline_model.run_flowline_da import background_step, forecast_step_single
-        raise ValueError("model development still underway")
-    elif re.match(r"\Aissm\Z", model, re.IGNORECASE):
-        # from issm_model.run_issm_da import background_step, forecast_step_single
-        raise ValueError("model development still underway")
-    else:
-        raise ValueError("Other models are not yet implemented")
+    # call curently supported model Class
+    models = SupportedModels(model=model)
+    model_module = models.call_model()
     
     km = 0
     radius = 2
     for k in tqdm.trange(params["nt"]):
         # background step
-        statevec_bg = background_step(k,statevec_bg, hdim, **model_kwargs)
+        statevec_bg = model_module.background_step(k,statevec_bg, hdim, **model_kwargs)
 
         EnKFclass = EnKF(parameters=params, parallel_flag = parallel_flag)
         
-        statevec_ens = EnKFclass.forecast_step(statevec_ens, forecast_step_single, Q_err, **model_kwargs)
+        statevec_ens = EnKFclass.forecast_step(statevec_ens, \
+                                               model_module.forecast_step_single, \
+                                                Q_err, **model_kwargs)
 
         # Compute the ensemble mean
         statevec_ens_mean[:,k+1] = np.mean(statevec_ens, axis=1)
