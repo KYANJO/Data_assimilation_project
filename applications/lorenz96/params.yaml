@@ -34,7 +34,7 @@ enkf-parameters:
 
   # enkf model parameters
   model_name: "lorenz96"         # name of the model
-  filter_type: "EnKF"           # name of the filter: EnKF, DEnKF, EnTKF, EnRSKF
+  filter_type: "DEnKF"           # name of the filter: EnKF, DEnKF, EnTKF, EnRSKF
   parallel_flag: "serial"        # parallel flag: Serial, MPI
   commandlinerun: "True"         # command line run flag: True, False
  
