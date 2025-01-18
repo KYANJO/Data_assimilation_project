@@ -1,5 +1,5 @@
 # ==============================================================================
-# @des: This file contains run functions for icepack data assimilation.
+# @des: This file contains run functions for lorenz data assimilation.
 #       - contains different options of the EnKF data assimilation schemes.
 # @date: 2025-01-13
 # @author: Brian Kyanjo
@@ -10,44 +10,8 @@ import os
 import numpy as np
 from scipy.stats import multivariate_normal,norm
 
-# add the path to the utils.py file
-sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
-
-# --- run function for the lorenz96 model ---
-def run_simulation(state, **kwargs):
-    """des: Lorenz96 model function
-        inputs: state - current state of the model
-                **kwargs - additional arguments for the model
-       outputs: f - the derivative of the state vector
-    """
-    # Unpack the arguments
-    sigma = kwargs.get('sigma', None)
-    beta  = kwargs.get('beta', None)
-    rho   = kwargs.get('rho', None)
-
-    x,y,z = state # Unpack the state vector
-    f = np.zeros(3) # Create an empty vector to store the derivatives
-    f[0] = sigma*(y-x)  
-    f[1] = x*(rho-z)-y
-    f[2] = x*y - beta*z
-    return f
-
-# --- 4th order Runge-Kutta integrator --- 
-def RK4(rhs, state, **kwargs):
-    """des: 4th order Runge-Kutta integrator
-        inputs: rhs - function that computes the right-hand side of the ODE
-                state - current state of the model
-                dt - time step
-                *args - additional arguments for the model
-        outputs: state - updated state of the model after one time step
-    """
-    dt = kwargs.get('dt', None)
-    k1 = rhs(state, **kwargs)
-    k2 = rhs(state + 0.5*dt*k1, **kwargs)
-    k3 = rhs(state + 0.5*dt*k2, **kwargs)
-    k4 = rhs(state + dt*k3, **kwargs)
-    return state + dt/6*(k1 + 2*k2 + 2*k3 + k4)
-
+# --- import run_simulation function from the lorenz96 model ---
+from lorenz96_model import *
 
 # --- Forecast step for the Lorenz96 model ---
 def forecast_step_single(ens=None, ensemble=None, nd=None, Q_err=None, params=None, **kwargs):
@@ -58,8 +22,8 @@ def forecast_step_single(ens=None, ensemble=None, nd=None, Q_err=None, params=No
          outputs: uai - updated state of the model after one time step
     """
 
-    # Run the RK4 integrator to push the state forward in time
-    ensemble[:,ens] = RK4(run_simulation, ensemble[:,ens], **kwargs)
+    # call the run_simulation fun to push the state forward in time
+    ensemble[:,ens] = run_simulation(ensemble[:,ens], **kwargs)
 
     # add noise to the state variables
     noise = multivariate_normal.rvs(mean=np.zeros(nd), cov=Q_err)
@@ -79,8 +43,9 @@ def background_step(k=None,statevec_bg=None, hdim=None, **kwargs):
                 *args - additional arguments for the model
         outputs: state - updated state of the model after one time step
     """
-    # Run the RK4 integrator to push the state forward in time
-    statevec_bg[:,k+1] = RK4(run_simulation, statevec_bg[:,k], **kwargs)# Run the RK4 integrator to push the state forward in time
+    # Call the run_simulationfunction to push the state forward in time
+    statevec_bg[:,k+1] = run_simulation(statevec_bg[:,k], **kwargs)
+
     return statevec_bg
 
 # --- generate true state ---
@@ -103,7 +68,7 @@ def generate_true_state(statevec_true=None,params=None, **kwargs):
 
     # Run the model forward in time
     for k in range(nt):
-        statevec_true[:, k + 1] = RK4(run_simulation, statevec_true[:, k], **kwargs)
+        statevec_true[:, k + 1] = run_simulation(statevec_true[:, k], **kwargs)
 
     return statevec_true
 

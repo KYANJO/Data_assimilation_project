@@ -46,6 +46,6 @@ sys.path.insert(0, config_loader_dir)
 # import the necessary modules
 from tools import save_arrays_to_h5, extract_datasets_from_h5, save_all_data
 from utils import UtilsFunctions
-from icepack_config.config_loader import load_yaml_to_dict, get_section
+from config_loader import load_yaml_to_dict, get_section
 
 

@@ -40,8 +40,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
     hdim = nd // params["num_state_vars"]
 
     # call curently supported model Class
-    models = SupportedModels(model=model)
-    model_module = models.call_model()
+    model_module = SupportedModels(model=model).call_model()
     
     km = 0
     radius = 2
@@ -69,48 +68,28 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
             elif filter_type == "EnRSKF" or filter_type == "EnTKF":
                 Cov_model = 1/(N-1) * diff 
 
-            # convariance matrix for measurement noise
-            Cov_obs = params["sig_obs"][k+1]**2 * np.eye(2*params["number_obs_instants"]+1)
-
-            utils_functions = UtilsFunctions(params, statevec_ens) # Needed to update the ensembles for utils functions
-    
-            hu_ob = utils_functions.Obs_fun(hu_obs[:,km])
+            # Call the EnKF class for the analysis step
+            analysis  = EnKF(Observation_vec=  UtilsFunctions(params, statevec_ens).Obs_fun(hu_obs[:,km]), 
+                            Cov_obs=params["sig_obs"][k+1]**2 * np.eye(2*params["number_obs_instants"]+1), \
+                            Cov_model= Cov_model, \
+                            Observation_function=UtilsFunctions(params, statevec_ens).Obs_fun, \
+                            Obs_Jacobian=UtilsFunctions(params, statevec_ens).JObs_fun, \
+                            parameters=  params,\
+                            parallel_flag=   parallel_flag)
             
             # Compute the analysis ensemble
             if re.match(r"\AEnKF\Z", filter_type, re.IGNORECASE):
-                analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
-                                 Cov_model= Cov_model, \
-                                 Observation_function=utils_functions.Obs_fun, \
-                                 Obs_Jacobian=utils_functions.JObs_fun, \
-                                 parameters=  params,\
-                                 parallel_flag=   parallel_flag)
-                
                 statevec_ens, Cov_model = analysis.EnKF_Analysis(statevec_ens)
+            elif re.match(r"\AEnTKF\Z", filter_type, re.IGNORECASE):
+                statevec_ens, Cov_model = analysis.EnTKF_Analysis(statevec_ens)
             elif re.match(r"\ADEnKF\Z", filter_type, re.IGNORECASE):
-                analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
-                                 Cov_model= Cov_model, \
-                                 Observation_function=utils_functions.Obs_fun, \
-                                 Obs_Jacobian=utils_functions.JObs_fun, \
-                                 parameters=  params,\
-                                 parallel_flag=   parallel_flag)
-                
                 statevec_ens, Cov_model = analysis.DEnKF_Analysis(statevec_ens)
             elif re.match(r"\AEnRSKF\Z", filter_type, re.IGNORECASE):
-                analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
-                                 Cov_model= Cov_model, \
-                                 Observation_function=utils_functions.Obs_fun, \
-                                 parameters=  params,\
-                                 parallel_flag=   parallel_flag)
-                
                 statevec_ens, Cov_model = analysis.EnRSKF_Analysis(statevec_ens)
             elif re.match(r"\AEnTKF\Z", filter_type, re.IGNORECASE):
-                analysis  = EnKF(Observation_vec= hu_ob, Cov_obs=Cov_obs, \
-                                 Cov_model= Cov_model, \
-                                 Observation_function=utils_functions.Obs_fun, \
-                                 parameters=  params,\
-                                 parallel_flag=   parallel_flag)
-                
                 statevec_ens, Cov_model = analysis.EnTKF_Analysis(statevec_ens)
+            else:
+                raise ValueError("Filter type not supported")
 
             statevec_ens_mean[:,k+1] = np.mean(statevec_ens, axis=1)
 
@@ -131,9 +110,8 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
             km += 1
 
             # inflate the ensemble
-            utils_functions = UtilsFunctions(params, statevec_ens) # Needed to update the ensembles for inflation
-            statevec_ens = utils_functions.inflate_ensemble(in_place=True) 
-
+            statevec_ens = UtilsFunctions(params, statevec_ens).inflate_ensemble(in_place=True)
+            
         # Save the ensemble
         statevec_ens_full[:,:,k+1] = statevec_ens
 
