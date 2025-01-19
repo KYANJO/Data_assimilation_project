@@ -41,7 +41,13 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
 
     # call curently supported model Class
     model_module = SupportedModels(model=model).call_model()
-    
+
+    # Define filter flags
+    EnKF_flag = re.match(r"\AEnKF\Z", filter_type, re.IGNORECASE)
+    DEnKF_flag = re.match(r"\ADEnKF\Z", filter_type, re.IGNORECASE)
+    EnRSKF_flag = re.match(r"\AEnRSKF\Z", filter_type, re.IGNORECASE)
+    EnTKF_flag = re.match(r"\AEnTKF\Z", filter_type, re.IGNORECASE)
+
     km = 0
     radius = 2
     for k in tqdm.trange(params["nt"]):
@@ -63,10 +69,14 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
 
             # Compute the model covariance
             diff = statevec_ens - np.tile(statevec_ens_mean[:,k+1].reshape(-1,1),N)
-            if filter_type == "EnKF" or filter_type == "DEnKF":
+            if EnKF_flag or DEnKF_flag:
                 Cov_model = 1/(N-1) * diff @ diff.T
-            elif filter_type == "EnRSKF" or filter_type == "EnTKF":
+            elif EnRSKF_flag or EnTKF_flag:
                 Cov_model = 1/(N-1) * diff 
+
+            # check if params["sig_obs"] is a scalar
+            if isinstance(params["sig_obs"], (int, float)):
+                params["sig_obs"] = np.ones(params["nt"]+1) * params["sig_obs"]
 
             # Call the EnKF class for the analysis step
             analysis  = EnKF(Observation_vec=  UtilsFunctions(params, statevec_ens).Obs_fun(hu_obs[:,km]), 
@@ -78,15 +88,13 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
                             parallel_flag=   parallel_flag)
             
             # Compute the analysis ensemble
-            if re.match(r"\AEnKF\Z", filter_type, re.IGNORECASE):
+            if EnKF_flag:
                 statevec_ens, Cov_model = analysis.EnKF_Analysis(statevec_ens)
-            elif re.match(r"\AEnTKF\Z", filter_type, re.IGNORECASE):
-                statevec_ens, Cov_model = analysis.EnTKF_Analysis(statevec_ens)
-            elif re.match(r"\ADEnKF\Z", filter_type, re.IGNORECASE):
+            elif DEnKF_flag:
                 statevec_ens, Cov_model = analysis.DEnKF_Analysis(statevec_ens)
-            elif re.match(r"\AEnRSKF\Z", filter_type, re.IGNORECASE):
+            elif EnRSKF_flag:
                 statevec_ens, Cov_model = analysis.EnRSKF_Analysis(statevec_ens)
-            elif re.match(r"\AEnTKF\Z", filter_type, re.IGNORECASE):
+            elif EnTKF_flag:
                 statevec_ens, Cov_model = analysis.EnTKF_Analysis(statevec_ens)
             else:
                 raise ValueError("Filter type not supported")

@@ -89,10 +89,15 @@ class UtilsFunctions:
         # create synthetic observations
         hu_obs = np.zeros((nd,self.params["number_obs_instants"]))
 
+        # check if params["sig_obs"] is a scalar
+        if isinstance(self.params["sig_obs"], (int, float)):
+            self.params["sig_obs"] = np.ones(self.params["nt"]+1) * self.params["sig_obs"]
+
         km = 0
         for step in range(nt):
             if (km<m_obs) and (step+1 == ind_m[km]):
-                hu_obs[:,km] = statevec_true[:,step+1] + norm(loc=0,scale=self.params["sig_obs"][step+1]).rvs(size=nd)
+                # hu_obs[:,km] = statevec_true[:,step+1] + norm(loc=0,scale=self.params["sig_obs"][step+1]).rvs(size=nd)
+                hu_obs[:,km] = statevec_true[:,step+1] + np.random.normal(0,self.params["sig_obs"][step+1],nd)
                 
                 km += 1
 

@@ -26,7 +26,8 @@ def forecast_step_single(ens=None, ensemble=None, nd=None, Q_err=None, params=No
     ensemble[:,ens] = run_simulation(ensemble[:,ens], **kwargs)
 
     # add noise to the state variables
-    noise = multivariate_normal.rvs(mean=np.zeros(nd), cov=Q_err)
+    # noise = multivariate_normal.rvs(mean=np.zeros(nd), cov=Q_err)
+    noise = np.random.multivariate_normal(np.zeros(nd), Q_err)
 
     # update the ensemble with the noise
     ndim = nd//params['num_state_vars']
