@@ -11,6 +11,7 @@
 import os, sys
 import re
 import numpy as np
+import scipy
 from scipy.stats import multivariate_normal
 
 class EnsembleKalmanFilter:
@@ -268,13 +269,13 @@ class EnsembleKalmanFilter:
         KalGain = self._compute_kalman_gain()
 
         n,N = ensemble.shape
-        m   =self.Observation_vec.shape[0] 
+        m   = self.Observation_vec.shape[0] 
 
         # compute ensemble mean
         ensemble_forecast_mean = np.mean(ensemble, axis=1)
 
         # compute the anlysis mean
-        analysis_mean = ensemble_forecast_mean + KalGain @ (self.Observation_vec- self.Observation_function(ensemble_forecast_mean))
+        analysis_mean = ensemble_forecast_mean + KalGain @ (self.Observation_vec - self.Observation_function(ensemble_forecast_mean))
 
         # compute the forecast and analysis anomalies
         forecast_anomalies = np.zeros_like(ensemble)
@@ -292,6 +293,129 @@ class EnsembleKalmanFilter:
 
         return ensemble_analysis, analysis_error_cov
     
+    # def DEnKF_Analysis(self, ensemble):
+    #     """
+    #     Deterministic Ensemble Kalman Filter (DEnKF) analysis step using MPI.
+        
+    #     Parameters:
+    #         ensemble: ndarray - Ensemble matrix (n x N).
+
+    #     Returns:
+    #         ensemble_analysis: updated ensemble matrix (n x N).
+    #         analysis_error_cov: ndarray - Analysis error covariance matrix (n x n).
+    #     """
+
+    #     if re.match(r"\Aserial\Z", self.parallel_flag, re.IGNORECASE):
+
+    #         print("DEnKF Analysis: Starting analysis step")
+            
+    #         # Compute the Kalman gain
+    #         print("DEnKF Analysis: Computing Kalman gain")
+    #         KalGain = self._compute_kalman_gain()
+            
+    #         # Get dimensions
+    #         n, N = ensemble.shape
+    #         m = self.Observation_vec.shape[0]
+    #         print(f"DEnKF Analysis: Ensemble dimensions (n={n}, N={N}), Observation size (m={m})")
+
+    #         # Compute ensemble mean
+    #         print("DEnKF Analysis: Computing ensemble forecast mean")
+    #         ensemble_forecast_mean = np.mean(ensemble, axis=1)
+    #         print(f"DEnKF Analysis: Ensemble forecast mean calculated: {ensemble_forecast_mean}")
+
+    #         # Compute analysis mean
+    #         print("DEnKF Analysis: Computing analysis mean")
+    #         analysis_mean = ensemble_forecast_mean + KalGain @ (self.Observation_vec - self.Observation_function(ensemble_forecast_mean))
+    #         print(f"DEnKF Analysis: Analysis mean calculated: {analysis_mean}")
+
+    #         # Compute forecast and analysis anomalies
+    #         print("DEnKF Analysis: Computing forecast and analysis anomalies")
+    #         forecast_anomalies = np.zeros_like(ensemble)
+    #         analysis_anomalies = np.zeros_like(ensemble)
+
+    #         for i in range(N):
+    #             forecast_anomalies[:, i] = ensemble[:, i] - ensemble_forecast_mean
+    #             analysis_anomalies[:, i] = forecast_anomalies[:, i] - 0.5 * KalGain @ self.Observation_function(forecast_anomalies[:, i])
+    #             print(f"DEnKF Analysis: Anomalies for member {i} calculated")
+
+    #         # Compute the analysis ensemble
+    #         print("DEnKF Analysis: Computing analysis ensemble")
+    #         ensemble_analysis = analysis_anomalies + analysis_mean.reshape(-1, 1)
+    #         print(f"DEnKF Analysis: Analysis ensemble computed: {ensemble_analysis}")
+
+    #         # Compute the analysis error covariance
+    #         print("DEnKF Analysis: Computing analysis error covariance")
+    #         analysis_error_cov = (1 / (N - 1)) * analysis_anomalies @ analysis_anomalies.T
+    #         print(f"DEnKF Analysis: Analysis error covariance computed: {analysis_error_cov}")
+
+    #         print("DEnKF Analysis: Analysis step completed")
+    #         return ensemble_analysis, analysis_error_cov
+
+    #     elif re.match(r"\AMPI\Z", self.parallel_flag, re.IGNORECASE):
+
+    #         from mpi4py import MPI
+    #         comm = MPI.COMM_WORLD
+    #         rank = comm.Get_rank()
+    #         size = comm.Get_size()
+
+    #         n, N = ensemble.shape
+
+    #         # Distribute the ensemble among processes
+    #         chunk_sizes = [(N // size) + (1 if i < (N % size) else 0) for i in range(size)]
+    #         displacements = [sum(chunk_sizes[:i]) for i in range(size)]
+    #         start_idx = displacements[rank]
+    #         end_idx = start_idx + chunk_sizes[rank]
+    #         local_ensemble = ensemble[:, start_idx:end_idx]
+
+    #         # 1. Compute local ensemble mean
+    #         print(f"Rank {rank}: Starting local mean calculation")
+    #         local_mean = np.mean(local_ensemble, axis=1)
+
+    #         # 2. Compute the global mean
+    #         global_mean = np.zeros(n)
+    #         comm.Allreduce(local_mean, global_mean, op=MPI.SUM)
+    #         global_mean /= N
+    #         print(f"Rank {rank}: Global mean calculated: {global_mean}")
+
+    #         # 3. Compute Kalman gain
+    #         KalGain = self._compute_kalman_gain()
+
+    #         # 4. Compute the analysis mean
+    #         if rank == 0:
+    #             print(f"Rank {rank}: Computing analysis mean")
+    #         analysis_mean = global_mean + KalGain @ (self.Observation_vec - self.Observation_function(global_mean))
+
+    #         # 5. Compute local anomalies
+    #         local_anomalies = local_ensemble - global_mean.reshape(-1, 1)
+
+    #         # 6. Apply correction to local anomalies
+    #         local_analysis_anomalies = np.zeros_like(local_anomalies)
+    #         for i in range(local_anomalies.shape[1]):
+    #             local_analysis_anomalies[:, i] = (
+    #                 local_anomalies[:, i] - 0.5 * KalGain @ self.Observation_function(local_anomalies[:, i])
+    #             )
+    #         print(f"Rank {rank}: Local analysis anomalies calculated")
+
+    #         # 7. Gather analysis anomalies on rank 0
+    #         gathered_anomalies = comm.gather(local_analysis_anomalies, root=0)
+
+    #         # 8. Assemble analysis ensemble and compute covariance on rank 0
+    #         if rank == 0:
+    #             print(f"Rank {rank}: Assembling analysis anomalies")
+    #             analysis_anomalies = np.hstack(gathered_anomalies)
+    #             ensemble_analysis = analysis_anomalies + analysis_mean.reshape(-1, 1)
+    #             analysis_error_cov = (1 / (N - 1)) * analysis_anomalies @ analysis_anomalies.T
+    #         else:
+    #             ensemble_analysis = None
+    #             analysis_error_cov = None
+
+    #         # 9. Broadcast results to all processes
+    #         ensemble_analysis = comm.bcast(ensemble_analysis, root=0)
+    #         analysis_error_cov = comm.bcast(analysis_error_cov, root=0)
+    #         print(f"Rank {rank}: Final analysis broadcast completed")
+
+    #         return ensemble_analysis, analysis_error_cov
+
     def EnRSKF_Analysis(self, ensemble):
         """
         Deterministic Ensemble Square Root Filter (EnSRF) analysis step.

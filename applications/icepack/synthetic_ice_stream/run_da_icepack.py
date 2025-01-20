@@ -7,6 +7,8 @@
 # --- Imports ---
 import sys
 import os
+import numpy as np
+from mpi4py import MPI
 
 # --- Configuration ---
 os.environ["PETSC_CONFIGURE_OPTIONS"] = "--download-mpich-device=ch3:sock"
@@ -15,6 +17,8 @@ os.environ["OMP_NUM_THREADS"] = "1"
 # --- Utility imports ---
 sys.path.insert(0, '../../../config')
 from _utility_imports import *
+applications_dir = os.path.join(project_root, 'applications','icepack')
+sys.path.insert(0, applications_dir)
 
 from firedrake import *
 from firedrake.petsc import PETSc
@@ -23,12 +27,14 @@ from icepack.constants import (
     water_density as rho_W,
     gravity as g,
 )
-import icepack
-import icepack.models.friction
+
 
 # --- Utility Functions ---
 from run_models_da import run_model_with_filter
-from icepack_model.run_icepack_da import generate_true_state, generate_nurged_state, initialize_ensemble
+from icepack_enkf import generate_true_state, generate_nurged_state, initialize_ensemble
+
+import icepack
+import icepack.models.friction
 
 # --- Load Parameters ---
 # Load parameters from a YAML file
@@ -165,7 +171,8 @@ params = {
     "sig_model": float(enkf_params["sig_model"]),
     "sig_obs": float(enkf_params["sig_obs"]),
     "sig_Q": float(enkf_params["sig_Q"]),
-    "freq_obs": int(float(enkf_params["freq_obs"])),
+    "freq_obs": float(enkf_params["freq_obs"]),
+    "obs_max_time": int(float(enkf_params["obs_max_time"])),
 }
 
 kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling_params["da"]),
@@ -176,8 +183,17 @@ kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling
          "a_in_p":float(modeling_params["a_in_p"]), "da_p":float(modeling_params["da_p"]),
          "solver":solver_weertman,
           "obs_index": (np.linspace(int(params["freq_obs"]/params["dt"]), \
-                             int(params["obs_max_time"]/params["dt"]), int(params["number_obs_instants"]))).astype(int)
+                             int(params["obs_max_time"]/params["dt"]), int(params["number_obs_instants"]))).astype(int),
+        "joint_estimation": bool(enkf_params["joint_estimation"]),
+        "parameter_estimation": bool(enkf_params["parameter_estimation"]),
+        "state_estimation": bool(enkf_params["state_estimation"]),
 }
+
+# --- observations parameters ---
+sig_obs = np.zeros(params["nt"]+1)
+for i in range(len(kwargs["obs_index"])):
+    sig_obs[kwargs["obs_index"][i]] = float(enkf_params["sig_obs"])
+params["sig_obs"] = sig_obs
 
 # --- Generate True and Nurged States ---
 PETSc.Sys.Print("Generating true state ...")
@@ -195,25 +211,38 @@ statevec_nurged = generate_nurged_state(
     **kwargs  
 )
 
-comm.Barrier()
-if rank == 0:
-    # --- Save True and Nurged States ---
-    save_arrays_to_h5(
-        filter_type="true-wrong",
-        model=enkf_params["model_name"],
-        parallel_flag=enkf_params["parallel_flag"],
-        commandlinerun=enkf_params["commandlinerun"],
-        degree=np.array([int(float(physical_params["degree"]))]),
-        t=kwargs["t"], b_io=np.array([b_in,b_out]),
-        Lxy=np.array([Lx,Ly]),nxy=np.array([nx,ny]),
-        statevec_true=statevec_true,
-        statevec_nurged=statevec_nurged,
-    )
+# comm.Barrier()
+# if rank == 0:
+#     # --- Save True and Nurged States ---
+#     save_arrays_to_h5(
+#         filter_type="true-wrong",
+#         model=enkf_params["model_name"],
+#         parallel_flag=enkf_params["parallel_flag"],
+#         commandlinerun=enkf_params["commandlinerun"],
+#         degree=np.array([int(float(physical_params["degree"]))]),
+#         t=kwargs["t"], b_io=np.array([b_in,b_out]),
+#         Lxy=np.array([Lx,Ly]),nxy=np.array([nx,ny]),
+#         statevec_true=statevec_true,
+#         statevec_nurged=statevec_nurged,
+#     )
 
 # --- Synthetic Observations ---
 PETSc.Sys.Print("Generating synthetic observations ...")
 utils_funs = UtilsFunctions(params, statevec_true)
-hu_obs = utils_funs._create_synthetic_observations(statevec_true)
+hu_obs = utils_funs._create_synthetic_observations(statevec_true,kwargs["obs_index"])
+
+# load data to be written to file
+save_all_data(
+    enkf_params=enkf_params,
+    nofilter=True,
+    t=kwargs["t"], b_io=np.array([b_in,b_out]),
+    Lxy=np.array([Lx,Ly]),nxy=np.array([nx,ny]),
+    statevec_true=statevec_true,
+    statevec_nurged=statevec_nurged, 
+    obs_max_time=np.array([params["obs_max_time"]]),
+    obs_index=kwargs["obs_index"],
+    w=hu_obs
+)
 
 # --- Initialize Ensemble ---
 PETSc.Sys.Print("Initializing the ensemble ...")
@@ -250,14 +279,21 @@ statevec_ens_full, statevec_ens_mean, statevec_bg = run_model_with_filter(
 
 
 # Only rank 0 writes to file
-comm.Barrier()
-if rank == 0:
-    save_arrays_to_h5(
-    filter_type=enkf_params["filter_type"],
-    model=enkf_params["model_name"],
-    parallel_flag=enkf_params["parallel_flag"],
-    commandlinerun=enkf_params["commandlinerun"],
+# comm.Barrier()
+# if rank == 0:
+#     save_arrays_to_h5(
+#     filter_type=enkf_params["filter_type"],
+#     model=enkf_params["model_name"],
+#     parallel_flag=enkf_params["parallel_flag"],
+#     commandlinerun=enkf_params["commandlinerun"],
+#     statevec_ens_full=statevec_ens_full,
+#     statevec_ens_mean=statevec_ens_mean,
+#     statevec_bg=statevec_bg
+#     )
+# load data to be written to file
+save_all_data(
+    enkf_params=enkf_params,
     statevec_ens_full=statevec_ens_full,
     statevec_ens_mean=statevec_ens_mean,
     statevec_bg=statevec_bg
-    )
+)

@@ -43,11 +43,11 @@ def RK4(rhs, state, **kwargs):
     return state + dt/6*(k1 + 2*k2 + 2*k3 + k4)
 
 # --- Run similation for the Lorenz96 model ---
-def run_simulation(state, **kwargs):
+def run_simulation(ensemble, **kwargs):
     """des: Lorenz96 model function
-        inputs: state - current state of the model
+        inputs: ensemble - current ensemble state of the model
                 **kwargs - additional arguments for the model
         outputs: model run
     """
     
-    return RK4(Lorenz96, state, **kwargs)
+    return RK4(Lorenz96, ensemble, **kwargs)

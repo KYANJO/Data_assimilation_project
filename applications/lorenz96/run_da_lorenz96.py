@@ -24,7 +24,7 @@ parameters = load_yaml_to_dict(parameters_file)
 
 physical_params = get_section(parameters, "physical-parameters")
 modeling_params = get_section(parameters, "modeling-parameters")
-enkf_params = get_section(parameters, "enkf-parameters")
+enkf_params     = get_section(parameters, "enkf-parameters")
 
 # --- Prepare observations and ensemble parameters ---
 # --- Ensemble Parameters ---
@@ -57,7 +57,6 @@ sig_obs = np.zeros(params["nt"]+1)
 for i in range(len(kwargs["obs_index"])):
     sig_obs[kwargs["obs_index"][i]] = float(enkf_params["sig_obs"])
 params["sig_obs"] = sig_obs
-# params["sig_obs"] = float(enkf_params["sig_obs"])
 
 # --- Generate True and Nurged States ---
 print("Generating true state ...")

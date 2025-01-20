@@ -24,7 +24,7 @@ class SupportedModels:
     # Dictionary mapping model names to their respective import paths and states
     MODEL_CONFIG = {
         "icepack": {
-            "module": "icepack.icepack_enkf",
+            "module": "applications.icepack.icepack_enkf",
             "description": "Icepack model",
             "status": "supported",
         },

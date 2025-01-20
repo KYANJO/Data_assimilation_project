@@ -155,5 +155,6 @@ def save_all_data(enkf_params=None, nofilter=None, **kwargs):
             **kwargs
         )
 
-
+# --- using checkpointing to save icepack output ---
+# def save_icepack_output(h_save, u_save, smb, params,kwargs):
             
