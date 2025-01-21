@@ -166,7 +166,7 @@ params = {
     "num_state_vars": int(float(enkf_params["num_state_vars"])),
     "nd": h0.dat.data.size * int(float(enkf_params["num_state_vars"])),
     "Nens": int(float(enkf_params["Nens"])),
-    "number_obs_instants": int(float(enkf_params["number_obs_instants"])),
+    "number_obs_instants": int(int(float(enkf_params["obs_max_time"]))/float(enkf_params["freq_obs"])),
     "inflation_factor": float(enkf_params["inflation_factor"]),
     "sig_model": float(enkf_params["sig_model"]),
     "sig_obs": float(enkf_params["sig_obs"]),
@@ -183,11 +183,12 @@ kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling
          "a_in_p":float(modeling_params["a_in_p"]), "da_p":float(modeling_params["da_p"]),
          "solver":solver_weertman,
           "obs_index": (np.linspace(int(params["freq_obs"]/params["dt"]), \
-                             int(params["obs_max_time"]/params["dt"]), int(params["number_obs_instants"]))).astype(int),
+                        int(params["obs_max_time"]/params["dt"]), int(params["number_obs_instants"]))).astype(int),
         "joint_estimation": bool(enkf_params["joint_estimation"]),
         "parameter_estimation": bool(enkf_params["parameter_estimation"]),
         "state_estimation": bool(enkf_params["state_estimation"]),
 }
+print(kwargs["obs_index"])
 
 # --- observations parameters ---
 sig_obs = np.zeros(params["nt"]+1)
