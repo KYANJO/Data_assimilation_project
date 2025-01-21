@@ -24,7 +24,7 @@ class SupportedModels:
     # Dictionary mapping model names to their respective import paths and states
     MODEL_CONFIG = {
         "icepack": {
-            "module": "applications.icepack.icepack_enkf",
+            "module": "icepack_model.icepack_enkf",
             "description": "Icepack model",
             "status": "supported",
         },
@@ -87,7 +87,7 @@ class SupportedModels:
             raise ValueError(f"Model '{self.model}' is still under development: {model_info['description']}.")
 
         try:
-            # Dynamically import the model module
+            # Dynamically import the model 
             model_module = importlib.import_module(model_info["module"])
             print(f"Successfully loaded {model_info['description']} from {model_info['module']}.")
             return model_module
