@@ -188,7 +188,43 @@ kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling
         "parameter_estimation": bool(enkf_params["parameter_estimation"]),
         "state_estimation": bool(enkf_params["state_estimation"]),
 }
+
+
+def generate_observation_schedule(t, freq_obs, obs_max_time,obs_start_time=0.01):
+    """
+    Generate observation times and indices from a given array of time points.
+
+    Parameters:
+        t (list or np.ndarray): Array of time points.
+        freq_obs (int): Frequency of observations in the same unit as `t`.
+        obs_max_time (int): Maximum observation time in the same unit as `t`.
+
+    Returns:
+        obs_t (list): Observation times.
+        obs_idx (list): Indices corresponding to observation times in `t`.
+    """
+    # Convert input to a numpy array for easier manipulation
+    t = np.array(t)
+    
+    # Generate observation times
+    obs_t = np.arange(obs_start_time, obs_max_time + freq_obs, freq_obs)
+    # obs_t = np.linspace(obs_start_time, obs_max_time, int(obs_max_time/freq_obs)+1)
+    
+    # Find indices of observation times in the original array
+    obs_idx = np.array([np.where(t == time)[0][0] for time in obs_t if time in t]).astype(int)
+
+    print(f"Number of observation instants: {len(obs_idx)} at times: {t[obs_idx]}")
+    
+    return obs_t, obs_idx
+
+
+obs_t, obs_idx = generate_observation_schedule(kwargs["t"], params["freq_obs"], params["obs_max_time"],params["freq_obs"])
+
+# kwargs["obs_index"] = np.array([x for x in kwargs["obs_index"] if x != 0])
+# params["number_obs_instants"] = len(kwargs["obs_index"])
 print(kwargs["obs_index"])
+kwargs["obs_index"] = obs_idx
+params["number_obs_instants"] = len(obs_idx)
 
 # --- observations parameters ---
 sig_obs = np.zeros(params["nt"]+1)

@@ -197,11 +197,11 @@ def generate_nurged_state(statevec_nurged=None,params=None,**kwargs):
 
     t = np.linspace(0, 1, nt)
     for k in tqdm.trange(nt):
-        aa   = a_in_p*(np.sin(t[k]) + 1)
-        daa  = da_p*(np.sin(t[k]) + 1)
-        a_in = firedrake.Constant(aa)
-        da_  = firedrake.Constant(daa)
-        a    = firedrake.interpolate(a_in + da_ * x / Lx, Q)
+        # aa   = a_in_p*(np.sin(t[k]) + 1)
+        # daa  = da_p*(np.sin(t[k]) + 1)
+        # a_in = firedrake.Constant(aa)
+        # da_  = firedrake.Constant(daa)
+        # a    = firedrake.interpolate(a_in + da_ * x / Lx, Q)
         # call the ice stream model to update the state variables
         h, u = Icepack(solver, h, u, a, b, dt, h0, fluidity = A, friction = C)
 
