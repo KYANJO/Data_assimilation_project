@@ -25,7 +25,7 @@ modeling-parameters:
   da:   -2.7              # change of accumulation rate
   a_in_p: 1.87            # nurged accumulation rate at the inflow
   da_p: -2.835            # nurged change of accumulation rate
-  num_years: 10          # number of years to run the model
+  num_years: 100          # number of years to run the model
   timesteps_per_year: 2   # number of timesteps per year
 
 enkf-parameters:
@@ -52,12 +52,12 @@ enkf-parameters:
   # nurged parameters
   h_nurge_ic: 100         # nurged increment for initial thickness
   u_nurge_ic: 2.5         # nurged increment for initial velocity
-  nurged_entries: 250     # number of nurged entries
+  nurged_entries: 500     # number of nurged entries
 
   # enkf model parameters
   model_name: "icepack"               # name of the model
   model_solver: "solver_weertman"     # name of the solver
   filter_type: "EnKF"               # name of the filter: EnKF, DEnKF, EnTKF, EnRSKF
-  parallel_flag: "Serial"             # parallel flag: Serial, MPI
+  parallel_flag: "MPI"             # parallel flag: Serial, MPI
   commandlinerun: "True"              # command line run flag: True, False
  
