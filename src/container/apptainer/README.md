@@ -7,7 +7,7 @@ Before building or running the container, ensure all MPI and GCC modules are unl
 This repository includes two container definition files:
 
 1. **[firedrake-icepack-docker.def](./firedrake-icepack-docker.def)**: Uses a pre-built Docker base image from Docker Hub for a faster and simpler build process.
-2. **[firedrake-icepack-ubuntu.def](./firedrake-icepack-ubuntu.def)**: Builds the container from scratch using a minimal Ubuntu image, including the full installation of dependencies such as Firedrake and Ice-Pack. *(Note: This process may take a significant amount of time.)*
+2. **[firedrake-icepack-ubuntu.def](./firedrake-icepack-ubuntu.def)**: Builds the container from scratch using a minimal Ubuntu image, including the full installation of dependencies such as Firedrake and Ice-Pack. *(Note: This process may take a significant amount of time. For now it's able to run with all modules purged and on a single node with one rank)* 
 
 ## Build Steps
 1. Clone this repository if you haven’t already.
