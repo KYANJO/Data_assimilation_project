@@ -173,6 +173,7 @@ params = {
     "sig_Q": float(enkf_params["sig_Q"]),
     "freq_obs": float(enkf_params["freq_obs"]),
     "obs_max_time": int(float(enkf_params["obs_max_time"])),
+    "obs_start_time": float(enkf_params["obs_start_time"]),
 }
 
 kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling_params["da"]),
@@ -190,41 +191,10 @@ kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling
 }
 
 
-def generate_observation_schedule(t, freq_obs, obs_max_time,obs_start_time=0.01):
-    """
-    Generate observation times and indices from a given array of time points.
-
-    Parameters:
-        t (list or np.ndarray): Array of time points.
-        freq_obs (int): Frequency of observations in the same unit as `t`.
-        obs_max_time (int): Maximum observation time in the same unit as `t`.
-
-    Returns:
-        obs_t (list): Observation times.
-        obs_idx (list): Indices corresponding to observation times in `t`.
-    """
-    # Convert input to a numpy array for easier manipulation
-    t = np.array(t)
-    
-    # Generate observation times
-    obs_t = np.arange(obs_start_time, obs_max_time + freq_obs, freq_obs)
-    # obs_t = np.linspace(obs_start_time, obs_max_time, int(obs_max_time/freq_obs)+1)
-    
-    # Find indices of observation times in the original array
-    obs_idx = np.array([np.where(t == time)[0][0] for time in obs_t if time in t]).astype(int)
-
-    print(f"Number of observation instants: {len(obs_idx)} at times: {t[obs_idx]}")
-    
-    return obs_t, obs_idx
-
-
-obs_t, obs_idx = generate_observation_schedule(kwargs["t"], params["freq_obs"], params["obs_max_time"],params["freq_obs"])
-
-# kwargs["obs_index"] = np.array([x for x in kwargs["obs_index"] if x != 0])
-# params["number_obs_instants"] = len(kwargs["obs_index"])
-print(kwargs["obs_index"])
+obs_t, obs_idx, num_observations = UtilsFunctions(params).generate_observation_schedule(**kwargs)
+print(obs_t)
 kwargs["obs_index"] = obs_idx
-params["number_obs_instants"] = len(obs_idx)
+params["number_obs_instants"] = num_observations
 
 # --- observations parameters ---
 sig_obs = np.zeros(params["nt"]+1)
@@ -248,25 +218,10 @@ statevec_nurged = generate_nurged_state(
     **kwargs  
 )
 
-# comm.Barrier()
-# if rank == 0:
-#     # --- Save True and Nurged States ---
-#     save_arrays_to_h5(
-#         filter_type="true-wrong",
-#         model=enkf_params["model_name"],
-#         parallel_flag=enkf_params["parallel_flag"],
-#         commandlinerun=enkf_params["commandlinerun"],
-#         degree=np.array([int(float(physical_params["degree"]))]),
-#         t=kwargs["t"], b_io=np.array([b_in,b_out]),
-#         Lxy=np.array([Lx,Ly]),nxy=np.array([nx,ny]),
-#         statevec_true=statevec_true,
-#         statevec_nurged=statevec_nurged,
-#     )
-
 # --- Synthetic Observations ---
 PETSc.Sys.Print("Generating synthetic observations ...")
 utils_funs = UtilsFunctions(params, statevec_true)
-hu_obs = utils_funs._create_synthetic_observations(statevec_true,kwargs["obs_index"])
+hu_obs = utils_funs._create_synthetic_observations(statevec_true,**kwargs)
 
 # load data to be written to file
 save_all_data(
@@ -315,18 +270,6 @@ statevec_ens_full, statevec_ens_mean, statevec_bg = run_model_with_filter(
 )
 
 
-# Only rank 0 writes to file
-# comm.Barrier()
-# if rank == 0:
-#     save_arrays_to_h5(
-#     filter_type=enkf_params["filter_type"],
-#     model=enkf_params["model_name"],
-#     parallel_flag=enkf_params["parallel_flag"],
-#     commandlinerun=enkf_params["commandlinerun"],
-#     statevec_ens_full=statevec_ens_full,
-#     statevec_ens_mean=statevec_ens_mean,
-#     statevec_bg=statevec_bg
-#     )
 # load data to be written to file
 save_all_data(
     enkf_params=enkf_params,

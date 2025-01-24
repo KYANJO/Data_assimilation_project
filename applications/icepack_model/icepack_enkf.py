@@ -146,9 +146,10 @@ def generate_nurged_state(statevec_nurged=None,params=None,**kwargs):
     h_indx = int(np.ceil(nurged_entries+1))
     # u_indx = int(np.ceil(u_nurge_ic+1))
     u_indx = 1
-    # h_bump = np.linspace(-h_nurge_ic,0,h_indx)
-    h_bump = np.random.uniform(-h_nurge_ic,0,h_indx)
-    u_bump = np.random.uniform(-u_nurge_ic,0,h_indx)
+    h_bump = np.linspace(-h_nurge_ic,0,h_indx)
+    u_bump = np.linspace(-u_nurge_ic,0,h_indx)
+    # h_bump = np.random.uniform(-h_nurge_ic,0,h_indx)
+    # u_bump = np.random.uniform(-u_nurge_ic,0,h_indx)
 
     h_with_bump = h_bump + h0.dat.data_ro[:h_indx]
     u_with_bump = u_bump + u0.dat.data_ro[:h_indx,0]
@@ -250,18 +251,19 @@ def initialize_ensemble(statevec_bg=None, statevec_ens=None, \
     h_indx = int(np.ceil(nurged_entries+1))
     for i in range(N):
         # intial thickness perturbed by bump
-        h_bump = np.random.uniform(-h_nurge_ic,0,h_indx)
+        # h_bump = np.random.uniform(-h_nurge_ic,0,h_indx)
+        h_bump = np.linspace(-h_nurge_ic,0,h_indx)
         # h_with_bump = h_bump + h_perturbed[:h_indx]
         # h_perturbed = np.concatenate((h_with_bump, h_perturbed[h_indx:]))
         h_with_bump = h_bump + h0.dat.data_ro[:h_indx]
         h_perturbed = np.concatenate((h_with_bump, h0.dat.data_ro[h_indx:]))
-        statevec_ens[:hdim,i] = h_perturbed
+        statevec_ens[:hdim,i] = h_perturbed 
 
         # intial velocity unperturbed
-        statevec_ens[hdim:2*hdim,i] = u_perturbed
-        statevec_ens[2*hdim:3*hdim,i]     = v_perturbed
-        # statevec_ens[hdim:2*hdim,i] = u0.dat.data_ro[:,0]
-        # statevec_ens[2*hdim:3*hdim,i]     = u0.dat.data_ro[:,1]
+        # statevec_ens[hdim:2*hdim,i] = u_perturbed
+        # statevec_ens[2*hdim:3*hdim,i]     = v_perturbed
+        statevec_ens[hdim:2*hdim,i] = u0.dat.data_ro[:,0]
+        statevec_ens[2*hdim:3*hdim,i]     = u0.dat.data_ro[:,1]
 
         # initilize the accumulation rate if joint estimation is enabled
         if kwargs["joint_estimation"]:

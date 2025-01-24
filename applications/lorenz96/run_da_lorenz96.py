@@ -40,6 +40,7 @@ params = {
     "sig_Q": float(enkf_params["sig_Q"]),
     "freq_obs": float(enkf_params["freq_obs"]),
     "obs_max_time": int(float(enkf_params["obs_max_time"])),
+    "obs_start_time": float(enkf_params["obs_start_time"]),
 }
 
 # --- model parameters ---
@@ -76,7 +77,7 @@ statevec_true = generate_true_state(
 # --- Synthetic Observations ---
 print("Generating synthetic observations ...")
 utils_funs = UtilsFunctions(params, statevec_true)
-w = utils_funs._create_synthetic_observations(statevec_true,kwargs["obs_index"])
+w = utils_funs._create_synthetic_observations(statevec_true,**kwargs)
 
 # load data to be written to file
 save_all_data(
