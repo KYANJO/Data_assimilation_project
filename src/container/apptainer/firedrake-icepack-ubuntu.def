@@ -191,6 +191,9 @@ EOF
     3. Alternatively, run the container interactively with a Python command:
        $ apptainer exec icepack.sif python3
 
+    4. On the cluster, run 
+        $ srun apptainer exec icepack.sif python3 
+
     ### Notes:
     - Ensure that Apptainer is installed on your system.
     - The container automatically sets up necessary environment variables 
