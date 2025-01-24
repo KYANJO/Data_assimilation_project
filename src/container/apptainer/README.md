@@ -11,18 +11,11 @@ This repository includes two container definition files:
 
 ## Build Steps
 1. Clone this repository if you haven’t already.
-2. Grant execution permissions to the setup script:
-   ```bash
-   chmod 777 [set_tmp_cache_dir.sh](./set_tmp_cache_dir.sh)
-   ```
-3. Run the script to set up cache directories and configure the environment:
-   ```bash
-   ./[set_tmp_cache_dir.sh](./set_tmp_cache_dir.sh)
-   ```
-4. Build and interact with the container:
+
+2. Build and interact with the container:
    - **Build the container**:
      ```bash
-     apptainer build icepack.sif [firedrake-icepack-ubuntu.def](./firedrake-icepack-ubuntu.def)
+     apptainer build icepack.sif firedrake-icepack-docker.def
      ```
      This generates the `.sif` container image.
    - **Start a shell inside the container**:
@@ -31,24 +24,31 @@ This repository includes two container definition files:
      ```
    - **Run a script using the container**:
      ```bash
-     apptainer exec icepack.sif [test.py](./test.py)
+     apptainer exec icepack.sif test.py
      ```
-
-Here’s the refined version for better clarity, formatting, and consistency:
-
 ---
 
 ## Running on SLURM
 
 ### **A Simple Test**
-To verify the compatibility of the container with the slurm environment, test a simple [mpi_hello_world.c](./mpi_hello_world.c) code by following these steps:
+To verify the compatibility of the container with the SLURM environment, you can test it using a simple [mpi_hello_world.c](./mpi_hello_world.c) code by following these steps:
 
 ```bash
+# Step 1: Purge existing modules
 module purge
+
+# Step 2: Compile the MPI code using mpicc from the container
 apptainer exec icepack_working.sif mpicc mpi_hello_world.c -o mpi_hello
-module load gcc/12 && module load mvapich2
-srun --mpi=pmi2 -n 4 apptainer exec icepack_working.sif ./mpi_hello
+
+# Step 3: Load necessary modules (adjust GCC and MPI versions as per your system)
+module load gcc/12
+module load mvapich2
+
+# Step 4: Run the compiled program with SLURM
+srun --mpi=pmi2 -n 4 apptainer exec icepack.sif ./mpi_hello
 ```
+
+---
 
 #### **Expected Output**
 The output should resemble the following:
@@ -59,9 +59,18 @@ Hello world! Processor atl1-1-02-002-23-2.pace.gatech.edu, Rank 1 of 4, CPU 1, N
 Hello world! Processor atl1-1-02-002-23-2.pace.gatech.edu, Rank 2 of 4, CPU 2, NUMA node 0, Namespace mnt:[4026534440]
 Hello world! Processor atl1-1-02-002-23-2.pace.gatech.edu, Rank 3 of 4, CPU 3, NUMA node 0, Namespace mnt:[4026534441]
 ```
-
 ---
 
+### **Note: Identifying the Correct MPI Type**
+The `--mpi=pmi2` flag in the `srun` command ensures proper communication between SLURM and your MPI program. To determine the available MPI types supported by your system, use the following command:
+
+```bash
+srun --mpi=list
+```
+
+This will display a list of supported MPI types. Choose the one that corresponds to your system's configuration (e.g., `pmi2`, `pmix`, etc.) and replace `--mpi=pmi2` with the appropriate option in the command.
+
+---
 ### **Create a Job Script**
 After building the container, create a SLURM job script (e.g., `job.sh`) with the following content:
 
