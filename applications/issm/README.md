@@ -1,8 +1,8 @@
 ## **ISSM model**
 
-This example demonstrates ISSM modeling using various types of ensemble Kalman filters (EnKF, DEnKF, EnTKF, and EnRSKF). You can run the example using the terminal interface 
+This example demonstrates ISSM modeling using various types of ensemble Kalman filters (EnKF, DEnKF, EnTKF, and EnRSKF). You can run the example using the terminal interface.
 
-**Terminal Execution** (Recommended for HPC platforms): Use the [run_da_issm.py](./run_da_issm.py) script for high-performance and feature-rich execution.
+**Terminal Execution**: Use the [run_da_issm.py](./run_da_issm.py) script for high-performance and feature-rich execution.
 
 ---
 
