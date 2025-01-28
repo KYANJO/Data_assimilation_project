@@ -1,15 +1,14 @@
-## **Lorenz96 model**
+## **ISSM model**
 
-This example demonstrates Lorenz96 modeling using various types of ensemble Kalman filters (EnKF, DEnKF, EnTKF, and EnRSKF). You can run the example using one of two methods:
+This example demonstrates ISSM modeling using various types of ensemble Kalman filters (EnKF, DEnKF, EnTKF, and EnRSKF). You can run the example using the terminal interface 
 
-1. **Notebook Interface**: Use the interactive notebook [EnKF_all_types.ipynb](./EnKF_all_types.ipynb) for a hands-on, exploratory approach.
-2. **Terminal Execution** (Recommended for HPC platforms): Use the [run_da_lorenz96.py](./run_da_lorenz96.py) script for high-performance and feature-rich execution.
+**Terminal Execution** (Recommended for HPC platforms): Use the [run_da_issm.py](./run_da_issm.py) script for high-performance and feature-rich execution.
 
 ---
 
-### **Running with [run_da_lorenz96.py](./run_da_lorenz96.py)**
+### **Running with [run_da_issm.py](./run_da_issm.py)**
 
-To execute the [run_da_lorenz96.py](./run_da_lorenz96.py) script, follow these steps:
+To execute the [run_da_issm.py](./run_da_issm.py) script, follow these steps:
 
 **Note**: All parameters are centrally managed in the [params.yaml](./params.yaml) file for ease of modification and experimentation.
 
@@ -19,7 +18,7 @@ To execute the [run_da_lorenz96.py](./run_da_lorenz96.py) script, follow these s
 
 2. **Run the Script**:
    ```bash
-   python run_da_lorenz96.py
+   python run_da_issm.py
    ```
 
 3. **Experiment with Filters**:
