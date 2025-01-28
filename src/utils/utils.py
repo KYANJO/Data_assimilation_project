@@ -76,15 +76,47 @@ class UtilsFunctions:
         """
 
         return self.H_matrix(n_model)
+
+    
+    def generate_observation_schedule(self,**kwargs):
+        """
+        Generate observation times and indices from a given array of time points.
+
+        Parameters:
+            t (list or np.ndarray): Array of time points.
+            freq_obs (int): Frequency of observations in the same unit as `t`.
+            obs_max_time (int): Maximum observation time in the same unit as `t`.
+
+        Returns:
+            obs_t (list): Observation times.
+            obs_idx (list): Indices corresponding to observation times in `t`.
+        """
+        # unpack kwargs
+        t = kwargs["t"]
+
+        # Convert input to a numpy array for easier manipulation
+        t = np.array(t)
+        
+        # Generate observation times
+        obs_t = np.arange(self.params["obs_start_time"], self.params["obs_max_time"] + self.params["freq_obs"], self.params["freq_obs"])
+        # obs_t = np.linspace(obs_start_time, obs_max_time, int(obs_max_time/freq_obs)+1)
+        
+        # Find indices of observation times in the original array
+        obs_idx = np.array([np.where(t == time)[0][0] for time in obs_t if time in t]).astype(int)
+
+        print(f"Number of observation instants: {len(obs_idx)} at times: {t[obs_idx]}")
+        
+        # number of observation instants
+        num_observations = len(obs_idx)
+
+        return obs_t, obs_idx, num_observations
     
     # --- Create synthetic observations ---
-    def _create_synthetic_observations(self,statevec_true,ind_m):
+    def _create_synthetic_observations(self,statevec_true,**kwargs):
         """create synthetic observations"""
         nd, nt = statevec_true.shape
-        m_obs = self.params["number_obs_instants"]
 
-        # Initialize the H matrix
-        H = np.zeros((m_obs * 2 + 1, m_obs))
+        obs_t, ind_m, m_obs = self.generate_observation_schedule(**kwargs)
 
         # create synthetic observations
         hu_obs = np.zeros((nd,self.params["number_obs_instants"]))
@@ -98,7 +130,7 @@ class UtilsFunctions:
             if (km<m_obs) and (step+1 == ind_m[km]):
                 # hu_obs[:,km] = statevec_true[:,step+1] + norm(loc=0,scale=self.params["sig_obs"][step+1]).rvs(size=nd)
                 hu_obs[:,km] = statevec_true[:,step+1] + np.random.normal(0,self.params["sig_obs"][step+1],nd)
-                
+            
                 km += 1
 
         return hu_obs

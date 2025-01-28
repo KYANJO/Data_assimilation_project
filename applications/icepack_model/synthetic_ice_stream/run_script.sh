@@ -10,4 +10,4 @@
 #SBATCH --mail-user=bkyanjo3@gatech.edu  # E-mail address for notifications
 
 # Run code
-srun apptainer exec  icepack_working.sif python3 run_da_icepack.py
+apptainer exec  icepack_working.sif python3 run_da_icepack.py
