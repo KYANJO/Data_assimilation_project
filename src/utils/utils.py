@@ -490,11 +490,16 @@ class UtilsFunctions:
         # Compute Euclidean distance matrix
         distance_matrix = self.compute_euclidean_distance(grid_x, grid_y)
 
-        if localization_radius.shape[0] == distance_matrix.shape[0]:
-            r = distance_matrix / localization_radius[:, None]
-        elif localization_radius.shape[0] > distance_matrix.shape[0]:  
-            obs_indices = np.arange(distance_matrix.shape[0])  # Select only the required points
-            r = distance_matrix / localization_radius[obs_indices, None]
+        # Normalize distances by the localization radius
+        # if is radius is a scalar
+        if np.isscalar(localization_radius):
+            r = distance_matrix / localization_radius
+        else:
+            if localization_radius.shape[0] == distance_matrix.shape[0]:
+                r = distance_matrix / localization_radius[:, None]
+            elif localization_radius.shape[0] > distance_matrix.shape[0]:  
+                obs_indices = np.arange(distance_matrix.shape[0])  # Select only the required points
+                r = distance_matrix / localization_radius[obs_indices, None]
 
         # Normalize distances by the localization radius
         # r = distance_matrix / localization_radius

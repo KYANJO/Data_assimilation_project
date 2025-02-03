@@ -110,8 +110,8 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
 
             # method 3
             if params["localization_flag"]:
-                radius = 1.5
-                # radius = UtilsFunctions(params, statevec_ens).compute_adaptive_localization_radius(grid_x, grid_y, base_radius=2.0, method='correlation')
+                # radius = 1.5
+                radius = UtilsFunctions(params, statevec_ens).compute_adaptive_localization_radius(grid_x, grid_y, base_radius=2.0, method='correlation')
                 # print(f"Adaptive localization radius: {radius}")
                 localization_weights = UtilsFunctions(params, statevec_ens).create_tapering_matrix(grid_x, grid_y, radius)
                 localization_weights_resized = np.eye(Cov_model.shape[0])
