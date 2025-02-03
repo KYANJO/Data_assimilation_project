@@ -81,7 +81,7 @@ def generate_true_state(statevec_true=None,params=None, **kwargs):
     """generate the true state of the model"""
     nd, nt = statevec_true.shape
     nt = nt - 1
-    hdim = nd // params["num_state_vars"]
+    hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
 
     # unpack the **kwargs
     a = kwargs.get('a', None)
@@ -99,6 +99,10 @@ def generate_true_state(statevec_true=None,params=None, **kwargs):
     statevec_true[hdim:2*hdim,0] = u0.dat.data_ro[:,0]
     statevec_true[2*hdim:3*hdim,0]     = u0.dat.data_ro[:,1]
 
+    # intialize the accumulation rate if joint estimation is enabled at the initial time step
+    if kwargs["joint_estimation"]:
+        statevec_true[3*hdim:,0] = a.dat.data_ro
+
     h = h0.copy(deepcopy=True)
     u = u0.copy(deepcopy=True)
     for k in tqdm.trange(nt):
@@ -109,9 +113,9 @@ def generate_true_state(statevec_true=None,params=None, **kwargs):
         statevec_true[hdim:2*hdim,k+1]  = u.dat.data_ro[:,0]
         statevec_true[2*hdim:3*hdim,k+1]      = u.dat.data_ro[:,1]
 
-    if kwargs["joint_estimation"]:
-        statevec_true[3*hdim:,0] = a.dat.data_ro
-        statevec_true[3*hdim:,k+1] = a.dat.data_ro
+        # update the accumulation rate if joint estimation is enabled
+        if kwargs["joint_estimation"]:
+            statevec_true[3*hdim:,k+1] = a.dat.data_ro
 
     return statevec_true
 
@@ -119,7 +123,7 @@ def generate_nurged_state(statevec_nurged=None,params=None,**kwargs):
     """generate the nurged state of the model"""
     nd, nt = statevec_nurged.shape
     nt = nt - 1
-    hdim = nd // params["num_state_vars"]
+    hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
 
     # unpack the **kwargs
     a = kwargs.get('a', None)
@@ -176,9 +180,9 @@ def generate_nurged_state(statevec_nurged=None,params=None,**kwargs):
         v_perturbed = u.dat.data_ro[:,1]
 
 
-    statevec_nurged[:hdim,0]       = h_perturbed
-    statevec_nurged[hdim:2*hdim,0] = u_perturbed
-    statevec_nurged[2*hdim:3*hdim,0]     = v_perturbed
+    statevec_nurged[:hdim,0]            = h_perturbed
+    statevec_nurged[hdim:2*hdim,0]      = u_perturbed
+    statevec_nurged[2*hdim:3*hdim,0]    = v_perturbed
 
     # h = h0.copy(deepcopy=True)
     # u = u0.copy(deepcopy=True)
@@ -191,18 +195,22 @@ def generate_nurged_state(statevec_nurged=None,params=None,**kwargs):
     u.dat.data[:,1] = v_perturbed
     h0 = h.copy(deepcopy=True)
 
+    tnur = np.linspace(.1, 2, nt)
     # intialize the accumulation rate if joint estimation is enabled at the initial time step
     if kwargs["joint_estimation"]:
-        a = kwargs.get('a', None)
+        aa   = a_in_p*(np.sin(tnur[0]) + 1)
+        daa  = da_p*(np.sin(tnur[0]) + 1)
+        a_in = firedrake.Constant(aa)
+        da_  = firedrake.Constant(daa)
+        a    = firedrake.interpolate(a_in + da_ * x / Lx, Q)
         statevec_nurged[3*hdim:,0] = a.dat.data_ro
 
-    t = np.linspace(0, 1, nt)
     for k in tqdm.trange(nt):
-        # aa   = a_in_p*(np.sin(t[k]) + 1)
-        # daa  = da_p*(np.sin(t[k]) + 1)
-        # a_in = firedrake.Constant(aa)
-        # da_  = firedrake.Constant(daa)
-        # a    = firedrake.interpolate(a_in + da_ * x / Lx, Q)
+        aa   = a_in_p*(np.sin(tnur[k]) + 1)
+        daa  = da_p*(np.sin(tnur[k]) + 1)
+        a_in = firedrake.Constant(aa)
+        da_  = firedrake.Constant(daa)
+        a    = firedrake.interpolate(a_in + da_ * x / Lx, Q)
         # call the ice stream model to update the state variables
         h, u = Icepack(solver, h, u, a, b, dt, h0, fluidity = A, friction = C)
 
@@ -222,7 +230,7 @@ def initialize_ensemble(statevec_bg=None, statevec_ens=None, \
     
     """initialize the ensemble members"""
     nd, N = statevec_ens.shape
-    hdim = nd // params["num_state_vars"]
+    hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
 
     # unpack the **kwargs
     h0 = kwargs.get('h0', None)
