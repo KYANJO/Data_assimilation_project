@@ -109,9 +109,9 @@ def generate_true_state(statevec_true=None,params=None, **kwargs):
         statevec_true[hdim:2*hdim,k+1]  = u.dat.data_ro[:,0]
         statevec_true[2*hdim:3*hdim,k+1]      = u.dat.data_ro[:,1]
 
-    if kwargs["joint_estimation"]:
-        statevec_true[3*hdim:,0] = a.dat.data_ro
-        statevec_true[3*hdim:,k+1] = a.dat.data_ro
+        if kwargs["joint_estimation"]:
+            statevec_true[3*hdim:,0] = a.dat.data_ro
+            statevec_true[3*hdim:,k+1] = a.dat.data_ro
 
     return statevec_true
 
