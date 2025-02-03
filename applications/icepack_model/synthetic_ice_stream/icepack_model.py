@@ -67,7 +67,7 @@ def run_model(ens, ensemble, nd, params, **kwargs):
     V  = kwargs.get('V', None)
     solver = kwargs.get('solver', None)
    
-    ndim = nd // params["num_state_vars"]
+    ndim = nd // (params["num_state_vars"] + params["num_param_vars"])
     num_state_vars = params["num_state_vars"]
     
     # unpack h,u,v from the ensemble member

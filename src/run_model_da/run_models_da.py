@@ -39,7 +39,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
     commandlinerun    = da_args[8]   # run through the terminal
 
     nd, N = statevec_ens.shape
-    hdim = nd // params["num_state_vars"]
+    hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
 
     # call curently supported model Class
     model_module = SupportedModels(model=model).call_model()
@@ -58,7 +58,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
         # if model_kwargs["joint_estimation"]:
         # get state variables indices
         num_state_vars = params["num_state_vars"]
-        hdim = nd // num_state_vars
+        num_params = params["num_param_vars"]
         # state_vars_indices = 
             
         x_points = np.linspace(0, model_kwargs["Lx"], model_kwargs["nx"])
@@ -121,11 +121,13 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
             # method 3
             if params["localization_flag"]:
                 
+                # sate block size
+                state_block_size = num_state_vars*hdim
                 # radius = 1.5
-                radius = UtilsFunctions(params, statevec_ens[:3*hdim,:]).compute_adaptive_localization_radius(grid_x, grid_y, base_radius=2.0, method='variance')
+                radius = UtilsFunctions(params, statevec_ens[:state_block_size,:]).compute_adaptive_localization_radius(grid_x, grid_y, base_radius=2.0, method='variance')
                 # print(f"Adaptive localization radius: {radius}")
-                localization_weights = UtilsFunctions(params, statevec_ens[:3*hdim,:]).create_tapering_matrix(grid_x, grid_y, radius)
-                localization_weights_resized = np.eye(Cov_model[:3*hdim,:3*hdim].shape[0])
+                localization_weights = UtilsFunctions(params, statevec_ens[:state_block_size,:]).create_tapering_matrix(grid_x, grid_y, radius)
+                localization_weights_resized = np.eye(Cov_model[:state_block_size,:state_block_size].shape[0])
                 localization_weights_resized[:localization_weights.shape[0], :localization_weights.shape[1]] = localization_weights
 
                 # Convert to sparse representation
@@ -134,7 +136,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
 
                 # Apply localization to state covariance only
                 # Cov_model[:3*hdim, :3*hdim] = csr_matrix(Cov_model[:3*hdim, :3*hdim]).multiply(localization_weights)
-                Cov_model[:3*hdim, :3*hdim] *= localization_weights_resized 
+                Cov_model[:state_block_size, :state_block_size] *= localization_weights_resized 
 
             # Call the EnKF class for the analysis step
             analysis  = EnKF(Observation_vec=  UtilsFunctions(params, statevec_ens).Obs_fun(hu_obs[:,km]), 

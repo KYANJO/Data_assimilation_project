@@ -81,7 +81,7 @@ def generate_true_state(statevec_true=None,params=None, **kwargs):
     """generate the true state of the model"""
     nd, nt = statevec_true.shape
     nt = nt - 1
-    hdim = nd // params["num_state_vars"]
+    hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
 
     # unpack the **kwargs
     a = kwargs.get('a', None)
@@ -123,7 +123,7 @@ def generate_nurged_state(statevec_nurged=None,params=None,**kwargs):
     """generate the nurged state of the model"""
     nd, nt = statevec_nurged.shape
     nt = nt - 1
-    hdim = nd // params["num_state_vars"]
+    hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
 
     # unpack the **kwargs
     a = kwargs.get('a', None)
@@ -230,7 +230,7 @@ def initialize_ensemble(statevec_bg=None, statevec_ens=None, \
     
     """initialize the ensemble members"""
     nd, N = statevec_ens.shape
-    hdim = nd // params["num_state_vars"]
+    hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
 
     # unpack the **kwargs
     h0 = kwargs.get('h0', None)

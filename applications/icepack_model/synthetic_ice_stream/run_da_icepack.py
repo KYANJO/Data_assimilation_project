@@ -164,7 +164,8 @@ params = {
     "nt": int(float(modeling_params["num_years"])) * int(float(modeling_params["timesteps_per_year"])),
     "dt": 1.0 / float(modeling_params["timesteps_per_year"]),
     "num_state_vars": int(float(enkf_params["num_state_vars"])),
-    "nd": h0.dat.data.size * int(float(enkf_params["num_state_vars"])),
+    "num_param_vars": int(float(enkf_params["num_param_vars"])),
+    "nd": h0.dat.data.size * int(float(enkf_params["num_state_vars"])+ int(float(enkf_params["num_param_vars"]))),
     "Nens": int(float(enkf_params["Nens"])),
     "number_obs_instants": int(int(float(enkf_params["obs_max_time"]))/float(enkf_params["freq_obs"])),
     "inflation_factor": float(enkf_params["inflation_factor"]),
@@ -175,7 +176,7 @@ params = {
     "obs_max_time": int(float(enkf_params["obs_max_time"])),
     "obs_start_time": float(enkf_params["obs_start_time"]),
     "localization_flag": bool(enkf_params["localization_flag"]),
-    
+
 }
 
 kwargs = {"a":a, "h0":h0, "u0":u0, "C":C, "A":A,"Q":Q,"V":V, "da":float(modeling_params["da"]),
