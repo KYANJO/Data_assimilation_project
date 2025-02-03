@@ -195,15 +195,19 @@ def generate_nurged_state(statevec_nurged=None,params=None,**kwargs):
     u.dat.data[:,1] = v_perturbed
     h0 = h.copy(deepcopy=True)
 
+    tnur = np.linspace(.1, 2, nt)
     # intialize the accumulation rate if joint estimation is enabled at the initial time step
     if kwargs["joint_estimation"]:
-        a = kwargs.get('a', None)
+        aa   = a_in_p*(np.sin(tnur[0]) + 1)
+        daa  = da_p*(np.sin(tnur[0]) + 1)
+        a_in = firedrake.Constant(aa)
+        da_  = firedrake.Constant(daa)
+        a    = firedrake.interpolate(a_in + da_ * x / Lx, Q)
         statevec_nurged[3*hdim:,0] = a.dat.data_ro
 
-    t = np.linspace(0, 1, nt)
     for k in tqdm.trange(nt):
-        aa   = a_in_p*(np.sin(t[k]) + 1)
-        daa  = da_p*(np.sin(t[k]) + 1)
+        aa   = a_in_p*(np.sin(tnur[k]) + 1)
+        daa  = da_p*(np.sin(tnur[k]) + 1)
         a_in = firedrake.Constant(aa)
         da_  = firedrake.Constant(daa)
         a    = firedrake.interpolate(a_in + da_ * x / Lx, Q)
