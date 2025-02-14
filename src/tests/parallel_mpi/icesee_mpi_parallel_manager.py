@@ -10,7 +10,7 @@ from mpi4py import MPI
 import numpy as np
 from tabulate import tabulate
 import math
-
+import copy
 
 class ParallelManager:
     """
@@ -39,19 +39,29 @@ class ParallelManager:
 
     def _initialize_variables(self):
         """Initializes default variables for MPI communication."""
+        # Global communicator
+        self.COMM_WORLD = None  # MPI communicator for all PEs
+        self.rank_world = None  # Rank in MPI_COMM_WORLD
+        self.size_world = None  # Size of MPI_COMM_WORLD
+
+        # Model communicator (forecast step)
         self.COMM_model = None  # MPI communicator for model tasks
         self.rank_model = None  # Rank in the COMM_model communicator
         self.size_model = None  # Size of the COMM_model communicator
 
-        # ICESS variables
-        self.n_modeltasks = None  # Number of parallel model tasks
-        self.n_filterpes = 1  # Number of parallel filter analysis tasks
-        self.size_world = None  # Total number of PEs in MPI_COMM_WORLD
-        self.rank_world = None  # Rank of PE in MPI_COMM_WORLD
+        # ICESS communicator for the analysis step
         self.COMM_filter = None  # MPI communicator for filter PEs
         self.rank_filter = None  # Rank in COMM_filter
         self.size_filter = None  # Number of PEs in COMM_filter
+        self.n_filterpes = 1  # Number of parallel filter analysis tasks
+
+        # ICESS communicator for coupling filter and model and also for initializations
         self.COMM_couple = None  # MPI communicator for coupling filter and model
+        self.rank_couple = None  # Rank in COMM_couple
+        self.size_couple = None  # Number of PEs in COMM_couple
+
+        # ICESS variables
+        self.n_modeltasks = None  # Number of parallel model tasks
         self.modelpe = False  # Whether PE is in COMM_model
         self.filterpe = False  # Whether PE is in COMM_filter
         self.task_id = None  # Index of model task (1,...,n_modeltasks)
@@ -75,6 +85,142 @@ class ParallelManager:
         # Use MPI_COMM_WORLD as the model communicator
         self.size_model = self.size_world
         self.rank_model = self.rank_world
+
+    # --- Parallel load distribution ---
+    def load_balancing(self, ensemble,comm):
+        """
+        Distributes ensemble members among MPI processes based on rank and size."""
+
+        global_shape,Nens = ensemble.shape
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+
+        # --- Properly Distribute Tasks for All Cases ---
+        if Nens > self.size_world:
+            # Case 1: More ensembles than processes → Distribute as evenly as possible
+            mem_per_task = Nens // size  # Base number of tasks per process
+            remainder = Nens % size       # Extra tasks to distribute
+
+            if rank < remainder:
+                # the first remainder gets mem_per_task+1 tasks each
+                start = rank * (mem_per_task + 1)
+                stop = start + (mem_per_task + 1)
+                # stop = start + mem_per_task
+            else:
+                #  the remaining (size - remainder) get mem_per_task tasks each
+                start = rank * mem_per_task + remainder
+                stop = start + mem_per_task
+                # stop = start + mem_per_task-1
+        else:
+            # Case 2: More processes than ensembles → Assign at most one task per rank
+            if rank < Nens:
+                start, stop = rank, rank + 1
+            else:
+                # Extra ranks do nothing
+                start, stop = 0, 0
+
+        # --- Ensure All Ranks Participate (No Deadlocks) ---
+        if start == stop:
+            print(f"[Rank {rank}] No work assigned. Waiting at barrier.")
+        else:
+            print(f"[Rank {rank}] Processing ensembles {start} to {stop}")
+        # return start, stop
+
+        # form  local ensembles
+        # ensemble_local = np.zeros((global_shape, stop-start))
+        ensemble_local = ensemble[:global_shape,start:stop]
+        # for memory issues return a deepcopy of the ensemble_local
+        return copy.deepcopy(ensemble_local)
+    
+    # --- memory formulation ---
+    def memory_usage(self, global_shape, Nens, bytes_per_element=8):
+        """
+        Computes the memory usage of an ensemble in bytes."""
+        return global_shape * Nens * bytes_per_element/1e9  # Convert to GB
+
+    # ---- Collective Communication Operations ----
+    # -- method to gather data from all ranks
+    def all_gather_data(self, comm, data):
+        """
+        Gathers data from all ranks using collective communication."""
+
+        size = comm.Get_size()  # Number of MPI processes
+        data = np.asarray(data)  # Ensure data is a NumPy array
+
+        # Get the shape of the incoming data
+        local_shape = data.shape  # Should be (18915, 16) per rank
+        global_shape = (size,) + local_shape  # Expected (size, 18915, 16)
+
+        # Allocate the buffer for gathering
+        gathered_data = np.zeros(global_shape, dtype=np.float64)
+
+        # Use Allgather to collect data from all ranks
+        comm.Allgather([data, MPI.DOUBLE], [gathered_data, MPI.DOUBLE])
+
+        return gathered_data
+    
+    # -- method to scatter data to all ranks
+    def scatter_data(comm, data):
+        """
+        Scatters data from one rank to all other ranks using collective communication."""
+
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+
+        # Ensure data is correctly divided
+        local_rows = data.shape[0] // size
+        recv_data = np.zeros((local_rows, data.shape[1]), dtype=np.float64)
+
+        # Scatter from Rank 0
+        comm.Scatter([data, MPI.DOUBLE], [recv_data, MPI.DOUBLE], root=0)
+
+        return recv_data
+
+    
+    # -- method to Bcast data to all ranks
+    def broadcast_data(comm, data, root=0):
+        """
+        Broadcasts data from one rank to all other ranks using collective communication."""
+        data = np.asarray(data)  # Ensure it's an array
+        comm.Bcast([data, MPI.DOUBLE], root=root)
+        return data
+    
+    # -- method to exchange data between all ranks
+    def alltoall_exchange(comm, data):
+        """
+        Exchanges data between all ranks using collective communication."""
+
+        size = comm.Get_size()
+        local_rows = data.shape[0] // size
+
+        # Each rank prepares send buffer with `size` chunks
+        sendbuf = np.split(data, size, axis=0)
+        sendbuf = np.concatenate(sendbuf, axis=0)  # Flatten for Alltoall
+
+        # Allocate receive buffer
+        recvbuf = np.empty_like(sendbuf)
+
+        # Perform Alltoall communication
+        comm.Alltoall([sendbuf, MPI.DOUBLE], [recvbuf, MPI.DOUBLE])
+
+        return recvbuf.reshape(size, local_rows, -1)  # Reshape into proper format
+
+    # --- Point-to-Point Communication Operations ---
+    def send_receive_data(comm, local_data, source=0, dest=1):
+        """
+        Sends data from one rank to another using point-to-point communication."""
+        rank = comm.Get_rank()
+
+        if rank == source:
+            comm.Send([local_data, MPI.DOUBLE], dest=dest)
+            print(f"[Rank {rank}] Sent data to Rank {dest}")
+
+        elif rank == dest:
+            recv_data = np.empty_like(local_data)
+            comm.Recv([recv_data, MPI.DOUBLE], source=source)
+            print(f"[Rank {rank}] Received data from Rank {source}")
+            return recv_data
+
 
 
 def icesee_mpi_parallelization(Nens, n_modeltasks=None, screen_output=True):
@@ -213,10 +359,10 @@ def icesee_mpi_parallelization(Nens, n_modeltasks=None, screen_output=True):
     # Create COMM_COUPLE communicator
     color_couple = parallel_manager.rank_model + 1
     parallel_manager.COMM_couple = COMM_ensemble.Split(color=color_couple, key=parallel_manager.rank_world)
-    rank_couple = parallel_manager.COMM_couple.Get_rank()
-    size_couple = parallel_manager.COMM_couple.Get_size()
+    parallel_manager.rank_couple = parallel_manager.COMM_couple.Get_rank()
+    parallel_manager.size_couple = parallel_manager.COMM_couple.Get_size()
 
-    # Display MPI Configuration
+    # Display MPI ICESEE Configuration
     if screen_output:
         display_pe_configuration(parallel_manager)
 

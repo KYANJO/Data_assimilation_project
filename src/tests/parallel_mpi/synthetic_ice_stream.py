@@ -24,61 +24,6 @@ timesteps_per_year = 2
 b_in, b_out = 20, -40
 s_in, s_out = 850, 50
 
-# def forecast_step(t, ens, ensemble_local, a, b, h0, u0, solver_weertman, δt,A,C,Q,V):
-def forecast_step(t, ens, ensemble_local, a, b, h0, u0, solver_weertman, δt,A,C,Q,V):
-
-    # hdim = h.dat.data.size
-    # hdim_loc = ensemble_local.shape[0]
-    
-    # extract h 
-    h = firedrake.Function(Q)
-    u = firedrake.Function(V)
-    hdim_loc = h.dat.data.size
-    # print (f"[DEBUG_in] Rank {rank} - hdim: {hdim_loc} loc ens size: {ensemble_local.shape} ens: {ens}")
-   
-    if t==0:
-        hvec = h0.dat.data_ro.copy()
-        uvec = u0.dat.data_ro[:,0].copy()
-        vvec = u0.dat.data_ro[:,1].copy()
-    else:
-        hvec = ensemble_local[:hdim_loc,ens]
-        uvec = ensemble_local[hdim_loc:2*hdim_loc,ens]
-        vvec = ensemble_local[2*hdim_loc:3*hdim_loc,ens]
-
-    h.dat.data[:] = hvec.copy()
-    u.dat.data[:,0] = uvec.copy()
-    u.dat.data[:,1] = vvec.copy()
-
-    # print (f"[DEBUG] Rank {rank} - hdim_: {h_.dat.data.size}")
-    
-    h = solver_weertman.prognostic_solve(
-        δt,
-        thickness=h,
-        velocity=u,
-        accumulation=a,
-        thickness_inflow=h0,
-    )
-    s = icepack.compute_surface(thickness=h, bed=b)
-
-    u = solver_weertman.diagnostic_solve(
-        velocity=u,
-        thickness=h,
-        surface=s,
-        fluidity=A,
-        friction=C,
-    )
-
-    # update the ensemble
-    ensemble_local[:hdim_loc,ens] = h.dat.data_ro
-    ensemble_local[hdim_loc:2*hdim_loc,ens] = u.dat.data_ro[:,0]
-    ensemble_local[2*hdim_loc:3*hdim_loc,ens] = u.dat.data_ro[:,1]
-
-    # add some noise to the ensemble
-    # ensemble[:hdim,ens] += 1e-4 * np.random.randn(hdim)
-
-    return  ensemble_local[:3*hdim_loc,ens]
-
-
 def intialize(nx,ny,Lx,Ly,b_in,b_out,s_in,s_out,rank,comm,size):
     # --- to only be ran on rank 0 and made available to all ranks ---
     # os.environ["MPIEXEC"] = " " 
@@ -172,74 +117,140 @@ def intialize(nx,ny,Lx,Ly,b_in,b_out,s_in,s_out,rank,comm,size):
 
     return h, u, a, b, h0,u0,solver_weertman, δt,A,C,Q,V,num_timesteps
 
+# def forecast_step(t, ens, ensemble_local, a, b, h0, u0, solver_weertman, δt,A,C,Q,V):
+def forecast_step_single(t, ens, ensemble_local, a, b, h0, u0, solver_weertman, δt,A,C,Q,V):
 
-def synthetic_ice_stream(rank,size,comm,Nens):
+    # hdim = h.dat.data.size
+    # hdim_loc = ensemble_local.shape[0]
+    
+    # extract h 
+    h = firedrake.Function(Q)
+    u = firedrake.Function(V)
+
+    with h.dat.vec as hvec:
+        hdim_loc = hvec.size
+    # hdim_loc = h.dat.data.size
+    # print (f"[DEBUG_in] Rank {rank} - hdim: {hdim_loc} loc ens size: {ensemble_local.shape} ens: {ens}")
+   
+    if t==0:
+        hvec = h0.dat.data_ro.copy()
+        uvec = u0.dat.data_ro[:,0].copy()
+        vvec = u0.dat.data_ro[:,1].copy()
+    else:
+        hvec = ensemble_local[:hdim_loc,ens]
+        uvec = ensemble_local[hdim_loc:2*hdim_loc,ens]
+        vvec = ensemble_local[2*hdim_loc:3*hdim_loc,ens]
+
+    h.dat.data[:] = hvec.copy()
+    u.dat.data[:,0] = uvec.copy()
+    u.dat.data[:,1] = vvec.copy()
+
+    # print (f"[DEBUG] Rank {rank} - hdim_: {h_.dat.data.size}")
+    
+    h = solver_weertman.prognostic_solve(
+        δt,
+        thickness=h,
+        velocity=u,
+        accumulation=a,
+        thickness_inflow=h0,
+    )
+    s = icepack.compute_surface(thickness=h, bed=b)
+
+    u = solver_weertman.diagnostic_solve(
+        velocity=u,
+        thickness=h,
+        surface=s,
+        fluidity=A,
+        friction=C,
+    )
+
+    # update the ensemble
+    # ensemble_local[:hdim_loc,ens] = h.dat.data_ro
+    ensemble_local[hdim_loc:2*hdim_loc,ens] = u.dat.data_ro[:,0]
+    ensemble_local[2*hdim_loc:3*hdim_loc,ens] = u.dat.data_ro[:,1]
+    with h.dat.vec_ro as hvec:
+        ensemble_local[:hdim_loc,ens] = hvec
+    # with u.dat as uvec:
+    #     ensemble_local[hdim_loc:2*hdim_loc,ens] = uvec.data_ro[:,0].copy()
+    #     ensemble_local[2*hdim_loc:3*hdim_loc,ens] = uvec.data_ro[:,1].copy()
+
+    # add some noise to the ensemble
+    # ensemble[:hdim,ens] += 1e-4 * np.random.randn(hdim)
+
+    return  ensemble_local[:3*hdim_loc,ens]
+
+def forecat_step(step ,global_shape, Nens, ensemble_local, a, b, h0, u0,solver_weertman, δt,A,C,Q,V):
+
+    for ens in range(ensemble_local.shape[1]):
+        ensemble_local[:,ens] = forecast_step_single(step , ens, ensemble_local, a, b, h0, u0,solver_weertman, δt,A,C,Q,V)
+    
+    if parallel_manager.memory_usage(global_shape, Nens,8) > 8: # 8 GB; consider using a parallelization strategy
+        # compute the local ensemble mean
+        local_mean = np.mean(ensemble_local, axis=1)  # Compute local mean
+        global_mean = np.zeros_like(local_mean)
+        comm.Allreduce([local_mean, MPI.DOUBLE], [global_mean, MPI.DOUBLE], op=MPI.SUM)
+        global_mean /= size  # Final global mean
+
+        # # compute the local ensemble covariance
+        # local_ensemble_centered = ensemble_local - global_mean[:, None]  # Center data
+        # local_cov = local_ensemble_centered @ local_ensemble_centered.T / (Nens - 1)
+
+        # # Sum covariance matrices across ranks
+        # global_cov = np.zeros_like(local_cov)
+        # comm.Allreduce([local_cov, MPI.DOUBLE], [global_cov, MPI.DOUBLE], op=MPI.SUM)
+
+        gathered_ensemble = parallel_manager.all_gather_data(comm, ensemble_local)
+
+        # comm.Barrier()
+        if rank == 0:
+            ensemble = np.hstack(gathered_ensemble)
+            return ensemble, global_mean
+        else:
+            return None, None
+    else:
+        # compute mean, covariance and gather the ensemble to rank 0
+        gathered_ensemble = parallel_manager.all_gather_data(comm, ensemble_local)
+        # comm.Barrier()
+        if rank == 0:
+            ensemble = np.hstack(gathered_ensemble)
+            ensemble_mean = np.mean(ensemble, axis=1)
+            # ensemble_cov = np.cov(ensemble, rowvar=True, bias=False)
+            return ensemble, ensemble_mean
+        else:
+            return None, None
+
+
+def synthetic_ice_stream(parallel_manager,rank,size,comm,Nens):
 
     # --- call the initialization function on rank 0 and write the function spaces to a file ---
     h, u, a, b, h0, u0, solver_weertman, δt,A,C,Q,V,num_timesteps = intialize(nx,ny,Lx,Ly,b_in,b_out,s_in,s_out,rank,comm,size)
 
-    # --- Properly Distribute Tasks for All Cases ---
-    # Case 1: More ensembles than processes → Distribute as evenly as possible
-    mem_per_task = Nens // size  # Base number of tasks per process
-    remainder = Nens % size       # Extra tasks to distribute
-
-    if rank < remainder:
-        # the first remainder gets mem_per_task+1 tasks each
-        start = rank * (mem_per_task + 1)
-        stop = start + (mem_per_task + 1)
-        # stop = start + mem_per_task
-    else:
-        #  the remaining (size - remainder) get mem_per_task tasks each
-        start = rank * mem_per_task + remainder
-        stop = start + mem_per_task
-        # stop = start + mem_per_task-1
-
-    # --- Ensure All Ranks Participate (No Deadlocks) ---
-    if start == stop:
-        print(f"[Rank {rank}] No work assigned. Waiting at barrier.")
-    else:
-        print(f"[Rank {rank}] Processing ensembles {start} to {stop}")
-        
-
-    sizes_rank = []
-    for size_loc in range (start,stop):
-        hdim_loc = h.dat.data.size
-        sizes_rank.append(hdim_loc)
-
-    #  form local ensemble based on the coresponding rank
-    # print (f"[DEBUG] Rank {rank} - sizes_rank: {sizes_rank}")
-    hdim_rank = sizes_rank[-1]
-    ensemble_local = np.zeros((3*hdim_rank, stop-start))
+    # --- Initialize the ensemble ---
+    ensemble = np.zeros((3*h.dat.data.size, Nens))
+    global_shape = ensemble.shape[0]
+    
+    # start, stop = parallel_manager.load_balancing(Nens, rank, size)
+    ensemble_local = parallel_manager.load_balancing(ensemble,comm)
     
     # -- loop over the timesteps --
     for step in tqdm.trange(num_timesteps):
+        # use comm_filter for the background step
+        # --- make sure the background_step function takes in a communicator ---
+        
+        # ---- call the forecast step
+        ensemble, ensemble_mean= forecat_step(step ,global_shape, Nens, ensemble_local, a, b, h0, u0,solver_weertman, δt,A,C,Q,V)
 
-        # # if rank == 0:
-        # print(f"[Rank {rank}] Processing ensembles {start} to {stop}, expected shape: {ensemble_local.shape}")
-        # t = 0
-        # global_dic = {}
-        for ens in range(ensemble_local.shape[1]):
-            # unique tag for each ens member corresponding to the rank
-            # tag=int((rank * np.ceil(Nens/size)) + ens)
-            ensemble_local[:3*hdim_rank,ens] = forecast_step(step , ens, ensemble_local, a, b, h0, u0,solver_weertman, δt,A,C,Q,V)
-            # print (f"[DEBUG] Rank {rank} Processing ensembles {tag} of {Nens-1}, expected shape: {ensemble_local[:3*hdim_rank,ens].shape}")
-            # add the ensemble to the global dictionary
-            # global_dic[tag] = ensemble_local[:3*hdim_rank,ens]
-
-        # Now we need to gather the ensemble
-        gathered_ensemble = comm.allgather(ensemble_local)
-        # Gather all local array shapes
-        # all_shapes = comm.gather(ensemble_local.shape, root=0)
-        # ============================================================
-        # comm.Barrier() 
+        # ---- call the analysis step
+        # the analysis step should take in the ensemble and ensemble_mean and return the updated ensemble. 
+        #  the cov is only computed when we make an observation. This step should wait for the forecast step to complete
+        #  before it can be called. Since we are using another communicator for the analysis step, we have to make sure
+        #  that all ranks are in sync before we can call the analysis step.
+        comm.Barrier()
         if rank == 0:
-            print(f"[Rank {rank}] Gathered shapes: {[arr.shape for arr in gathered_ensemble]}")
-            # hstack the gathered ensemble
-            # ensemble = np.hstack(gathered_ensemble)
-            # print(f"[Rank {rank}] ensemble shape after gather: {ensemble.shape}")
-            # print last 10 ensembles
-            # print("Ensemble Matrix Data (Sample):", ensemble[-10:,:])
-   
+            print(f"Analysis step for timestep {step +1} completed.")
+        # 
+    return ensemble
+
 
 # main execution
 if __name__ == "__main__":
@@ -252,7 +263,7 @@ if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore")
 
-    Nens = 64         # Number of ensemble members
+    Nens = 8         # Number of ensemble members
     n_modeltasks = 1 # Number of model tasks
 
     start_time = time.time()
@@ -272,12 +283,12 @@ if __name__ == "__main__":
 
     # --- Execute Assigned Tasks ---
     # for ens in range(start, stop):
-    ensemble = synthetic_ice_stream(rank, size, comm,Nens)
+    ensemble = synthetic_ice_stream(parallel_manager,rank, size, comm,Nens)
 
     # --- Synchronization Before Finalizing ---
     comm.Barrier()  # Ensures all ranks reach this point before proceeding
     if rank == 0:
-        print(ensemble)
+        print(ensemble[:10,:])
 
     # --- Report Execution Time ---
     if rank == 0:
