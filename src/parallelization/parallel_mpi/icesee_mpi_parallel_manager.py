@@ -175,7 +175,7 @@ class ParallelManager:
         return gathered_data
     
     # -- method to scatter data to all ranks
-    def scatter_data(comm, data):
+    def scatter_data(self,comm, data):
         """
         Scatters data from one rank to all other ranks using collective communication."""
 
@@ -193,7 +193,7 @@ class ParallelManager:
 
     
     # -- method to Bcast data to all ranks
-    def broadcast_data(comm, data, root=0):
+    def broadcast_data(self, comm, data, root=0):
         """
         Broadcasts data from one rank to all other ranks using collective communication."""
         data = np.asarray(data)  # Ensure it's an array
@@ -201,7 +201,7 @@ class ParallelManager:
         return data
     
     # -- method to exchange data between all ranks
-    def alltoall_exchange(comm, data):
+    def alltoall_exchange(self, comm, data):
         """
         Exchanges data between all ranks using collective communication."""
 
@@ -221,7 +221,7 @@ class ParallelManager:
         return recvbuf.reshape(size, local_rows, -1)  # Reshape into proper format
 
     # --- Point-to-Point Communication Operations ---
-    def send_receive_data(comm, local_data, source=0, dest=1):
+    def send_receive_data(self, comm, local_data, source=0, dest=1):
         """
         Sends data from one rank to another using point-to-point communication."""
         rank = comm.Get_rank()

@@ -15,60 +15,27 @@ from scipy.stats import multivariate_normal,norm
 from synthetic_ice_stream._icepack_model import *
 
 # --- Forecast step ---
-def forecast_step_single(parallel_manager=None, ens=None, ensemble=None, nd=None, Q_err=None, params=None, **kwargs):
+def forecast_step_single(ens=None, ensemble=None, nd=None, Q_err=None, params=None, **kwargs):
     """ensemble: packs the state variables:h,u,v of a single ensemble member
                  where h is thickness, u and v are the x and y components 
                  of the velocity field
     Returns: ensemble: updated ensemble member
     """
-    if re.match(r"\AMPI_model\Z", params["parallel_flag"], re.IGNORECASE):
-        from mpi4py import MPI
-        # get MPI information
-        comm = parallel_manager.COMM_model
-        rank = parallel_manager.mype_model
-        size = parallel_manager.npes_model
-        Nens = ensemble.shape[1]
-
-        # Distruibute the ensemble members among the processors
-        mem_per_task = Nens // size
-        remainder = Nens % size
-
-        if rank < remainder:
-            start = rank * (mem_per_task + 1)
-            stop = start + mem_per_task + 1
-        else:
-            start = rank * mem_per_task + remainder
-            stop = start + mem_per_task
-
-        hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
-        state_block_size = hdim*params["num_state_vars"]
-
-        for ens in range(start, stop):
-            ensemble[:,ens] = run_model(ens, ensemble, nd, params, **kwargs)
-
-            # add noise to the state variables
-            noise = np.random.multivariate_normal(np.zeros(state_block_size), Q_err)
-            ensemble[:state_block_size,ens] = ensemble[:state_block_size,ens] + noise
-
-        # gather the ensemble members
-        comm.Allgather(MPI.IN_PLACE, ensemble)
-        return ensemble
-    else:
-        # get the dimension of the state variables
-        hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
-        state_block_size = hdim*params["num_state_vars"]
+    # get the dimension of the state variables
+    hdim = nd // (params["num_state_vars"] + params["num_param_vars"])
+    state_block_size = hdim*params["num_state_vars"]
 
 
-        #  call the run_model fun to push the state forward in time
-        ensemble[:,ens] = run_model(ens, ensemble, nd, params, **kwargs)
+    #  call the run_model fun to push the state forward in time
+    ensemble[:,ens] = run_model(ens, ensemble, nd, params, **kwargs)
 
-        # add noise to the state variables
-        noise = np.random.multivariate_normal(np.zeros(state_block_size), Q_err)
+    # add noise to the state variables
+    noise = np.random.multivariate_normal(np.zeros(state_block_size), Q_err)
 
-        # update the ensemble with the noise
-        ensemble[:state_block_size,ens] = ensemble[:state_block_size,ens] + noise
+    # update the ensemble with the noise
+    ensemble[:state_block_size,ens] = ensemble[:state_block_size,ens] + noise
 
-        return ensemble[:,ens]
+    return ensemble[:,ens]
 
 # --- Background step ---
 def background_step(k=None,statevec_bg=None, hdim=None, **kwargs):

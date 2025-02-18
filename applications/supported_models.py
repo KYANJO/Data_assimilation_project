@@ -89,7 +89,7 @@ class SupportedModels:
         try:
             # Dynamically import the model 
             model_module = importlib.import_module(model_info["module"])
-            print(f"Successfully loaded {model_info['description']} from {model_info['module']}.")
+            # print(f"Successfully loaded {model_info['description']} from {model_info['module']}.")
             return model_module
         except ImportError as e:
             raise ImportError(f"Failed to import module for model '{self.model}': {e}")
