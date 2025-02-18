@@ -11,6 +11,7 @@ import tqdm
 from scipy.sparse import csr_matrix
 from scipy.sparse import block_diag
 from scipy.ndimage import zoom
+import copy
 
 # --- Add required paths ---
 src_dir = os.path.join(project_root, 'src')
@@ -95,7 +96,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
         size = parallel_manager.size_model
         # print(f"Rank: {rank}")
         # load balancing
-        ensemble_local = parallel_manager.load_balancing(ensemble_vec,comm)
+        ensemble_local,start,stop = parallel_manager.load_balancing(ensemble_vec,comm)
         
     else:
         parallel_manager = None
@@ -187,6 +188,8 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
                             Cov_model[:state_block_size, :] *= localization_weights_resized
 
                     # Call the EnKF class for the analysis step
+                    mpi_start = MPI.Wtime()
+
                     analysis  = EnKF(Observation_vec=  UtilsFunctions(params, ensemble_vec).Obs_fun(hu_obs[:,km]), 
                                     Cov_obs=params["sig_obs"][k+1]**2 * np.eye(2*params["number_obs_instants"]+1), \
                                     Cov_model= Cov_model, \
@@ -196,6 +199,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
                                     parallel_flag=   parallel_flag)
                     
                     # Compute the analysis ensemble
+                    
                     if EnKF_flag:
                         ensemble_vec, Cov_model = analysis.EnKF_Analysis(ensemble_vec)
                     elif DEnKF_flag:
@@ -209,6 +213,14 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
 
                     ensemble_vec_mean[:,k+1] = np.mean(ensemble_vec, axis=1)
 
+                    mpi_stop = MPI.Wtime()
+
+                    print(f"Rank: {rank}, Time taken for analysis step: {mpi_stop - mpi_start}")
+                    # get total time taken for the analysis step
+                    total_time = comm.reduce(mpi_stop - mpi_start, op=MPI.SUM, root=0)
+                    if rank == 0:
+                        print(f"Total time taken for analysis step: {total_time}")
+
 
                     # update the ensemble with observations instants
                     km += 1
@@ -217,7 +229,10 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
                     ensemble_vec = UtilsFunctions(params, ensemble_vec).inflate_ensemble(in_place=True)
                     # ensemble_vec = UtilsFunctions(params, ensemble_vec)._inflate_ensemble()
                 
-                # ensemble_vec_mean[:,k+1] = np.mean(ensemble_vec, axis=1)
+                    # update the local ensemble
+                    ensemble_local = copy.deepcopy(ensemble_vec[:,start:stop])
+                    
+                    # update ensemble
 
                 # Save the ensemble
                 ensemble_vec_full[:,:,k+1] = ensemble_vec
@@ -401,7 +416,7 @@ def run_model_with_filter(model=None, filter_type=None, *da_args, **model_kwargs
                 ensemble_vec = UtilsFunctions(params, ensemble_vec).inflate_ensemble(in_place=True)
                 # ensemble_vec = UtilsFunctions(params, ensemble_vec)._inflate_ensemble()
             
-            # ensemble_vec_mean[:,k+1] = np.mean(ensemble_vec, axis=1)
+                # ensemble_vec_mean[:,k+1] = np.mean(ensemble_vec, axis=1)
 
             # Save the ensemble
             ensemble_vec_full[:,:,k+1] = ensemble_vec
